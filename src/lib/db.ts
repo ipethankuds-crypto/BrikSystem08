@@ -318,21 +318,21 @@ class MultiTenantDB {
     if (!lead) return null;
 
     // Check if customer already exists or create new one
-    const nameParts = lead.name.trim().split(' ');
-    const firstName = nameParts[0] || 'Unknown';
-    const lastName = nameParts.slice(1).join(' ') || 'Customer';
+    const nameParts = (lead.name || '').trim().split(' ');
+    const firstName = lead.first_name || nameParts[0] || 'Unknown';
+    const lastName = lead.last_name || nameParts.slice(1).join(' ') || 'Customer';
 
     const customer = this.addCustomer({
       business_id: lead.business_id,
       first_name: firstName,
       last_name: lastName,
       email: lead.email || '',
-      phone: lead.phone,
+      phone: lead.phone || '',
       address: '',
       city: '',
       province: '',
       postal_code: '',
-      notes: `Converted from lead (${lead.service_requested}). ${lead.notes || ''}`,
+      notes: `Converted from lead (${lead.service_requested || 'General Inquiry'}). ${lead.notes || ''}`.trim(),
     });
 
     lead.status = 'CONVERTED';

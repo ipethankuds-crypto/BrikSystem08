@@ -4,7 +4,20 @@
 
 export type UserRole = 'OWNER' | 'ADMIN' | 'STAFF' | 'TECHNICIAN';
 
-export type LeadStatus = 'New' | 'Contacted' | 'Qualified' | 'Booked' | 'Won' | 'Lost';
+export type LeadStatus =
+  | 'New'
+  | 'Contacted'
+  | 'Qualified'
+  | 'Booked'
+  | 'Won'
+  | 'Lost'
+  | 'CONVERTED'
+  | 'NEW'
+  | 'CONTACTED'
+  | 'QUALIFIED'
+  | 'BOOKED'
+  | 'WON'
+  | 'LOST';
 
 export type JobStatus = 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
 
@@ -78,7 +91,9 @@ export interface Customer {
 
 export interface Lead {
   id: string;
-  organization_id: string;
+  business_id: string;
+  organization_id?: string;
+  customer_id?: string;
   first_name?: string;
   last_name?: string;
   name: string;
