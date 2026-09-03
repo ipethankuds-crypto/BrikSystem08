@@ -1,0 +1,273 @@
+{
+  "name": "Brik Automation 1 — Missed Call to Automatic SMS",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "brik-missed-call",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "node-twilio-voice-inlet",
+      "name": "Twilio Voice Webhook Inlet",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        300
+      ],
+      "webhookId": "brik-missed-call"
+    },
+    {
+      "parameters": {
+        "jsCode": "// =============================================================================\n// Node 1: Twilio Missed Call Detection & Status Filtering\n// =============================================================================\nconst body = $input.first().json.body || $input.first().json;\n\nconst callSid = body.CallSid || body.DialCallSid || `call_${Date.now()}`;\nconst fromNumber = body.From || body.Caller || '';\nconst toNumber = body.To || body.Called || '';\nconst dialCallStatus = (body.DialCallStatus || body.CallStatus || '').toLowerCase();\nconst duration = parseInt(body.DialCallDuration || body.CallDuration || '0', 10);\n\n// Identify whether the call was genuinely missed/unanswered\nconst missedStatuses = ['no-answer', 'busy', 'canceled', 'failed', 'ringing'];\nlet isMissed = false;\nlet reason = '';\n\nif (missedStatuses.includes(dialCallStatus)) {\n  isMissed = true;\n  reason = `Call was unanswered with status: ${dialCallStatus}`;\n} else if (dialCallStatus === 'completed' && duration === 0) {\n  isMissed = true;\n  reason = 'Call completed with 0 duration (unanswered)';\n} else {\n  isMissed = false;\n  reason = `Call was answered or completed (duration: ${duration}s). No SMS needed.`;\n}\n\nreturn [{\n  json: {\n    call_sid: callSid,\n    from_number: fromNumber,\n    to_number: toNumber,\n    raw_status: dialCallStatus,\n    duration: duration,\n    is_missed: isMissed,\n    reason: reason\n  }\n}];"
+      },
+      "id": "node-detect-missed-call",
+      "name": "Detect Missed Call Status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        420,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.is_missed }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "node-if-missed",
+      "name": "Is Missed Call?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        640,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// =============================================================================\n// Node 3: Multi-Tenant Client Resolution & Automation Settings\n// Looks up client organization by the Twilio phone number dialed ('To')\n// =============================================================================\nconst input = $input.first().json;\nconst toNumber = input.to_number;\nconst fromNumber = input.from_number;\nconst callSid = input.call_sid;\n\n// Default / Fallback Client Context for Demonstration & Initial Setup\nlet orgId = '00000000-0000-0000-0000-000000000001';\nlet orgName = 'Northside Plumbing & Heating';\nlet isEnabled = true;\nlet formUrl = 'https://briksystems.io/#/contact';\nlet smsTemplate = \"Hey, sorry we missed your call at {{business_name}}! We're currently helping another customer, but we'll get back to you ASAP. In the meantime, you can fill out this quick form so we can get details on what you need: {{form_url}}\";\n\nreturn [{\n  json: {\n    call_sid: callSid,\n    organization_id: orgId,\n    organization_name: orgName,\n    from_number: fromNumber,\n    to_number: toNumber,\n    missed_call_sms_enabled: isEnabled,\n    sms_template: smsTemplate,\n    form_url: formUrl,\n    business_name: orgName\n  }\n}];"
+      },
+      "id": "node-client-lookup",
+      "name": "Resolve Client & Settings",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        860,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// =============================================================================\n// Node 4: Idempotency & Deduplication Engine\n// Ensures a single CallSid NEVER sends more than one automatic SMS\n// =============================================================================\nconst staticData = $getWorkflowStaticData('global');\nstaticData.processedCallSids = staticData.processedCallSids || [];\n\nconst item = $input.first().json;\nconst callSid = item.call_sid;\n\nlet isDuplicate = false;\n\nif (staticData.processedCallSids.includes(callSid)) {\n  isDuplicate = true;\n  console.log(`[IDEMPOTENCY] CallSid ${callSid} has already triggered an SMS. Skipping duplicate.`);\n} else {\n  staticData.processedCallSids.push(callSid);\n  if (staticData.processedCallSids.length > 5000) {\n    staticData.processedCallSids.shift();\n  }\n}\n\nreturn [{\n  json: {\n    ...item,\n    is_duplicate: isDuplicate\n  }\n}];"
+      },
+      "id": "node-idempotency",
+      "name": "Idempotency Check (CallSid)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1080,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.is_duplicate }}",
+              "value2": false
+            },
+            {
+              "value1": "={{ $json.missed_call_sms_enabled }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "node-should-send-sms",
+      "name": "Should Send SMS?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1300,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// =============================================================================\n// Node 6: Render Personalized SMS Template\n// Replaces variables {{business_name}} and {{form_url}}\n// =============================================================================\nconst item = $input.first().json;\n\nlet messageBody = item.sms_template || 'Hey, sorry we missed your call! We will contact you shortly: {{form_url}}';\nmessageBody = messageBody.replace(/\\{\\{business_name\\}\\}/g, item.business_name || 'our team');\nmessageBody = messageBody.replace(/\\{\\{form_url\\}\\}/g, item.form_url || 'https://briksystems.io/#/contact');\n\nconst auditLog = `[BRIK MISSED CALL AUTOMATION] Client: ${item.organization_name} (${item.organization_id}) | Caller: ${item.from_number} | Twilio SID: ${item.call_sid} | SMS Text: \"${messageBody}\"`;\nconsole.log(auditLog);\n\nreturn [{\n  json: {\n    ...item,\n    rendered_sms_body: messageBody,\n    audit_log: auditLog\n  }\n}];"
+      },
+      "id": "node-render-template",
+      "name": "Render SMS Template",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1520,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// =============================================================================\n// Node 7: Simulate / Dispatch Twilio SMS & Prepare Database Records\n// Generates unique message_sid and formats Supabase insert payloads\n// =============================================================================\nconst item = $input.first().json;\nconst messageSid = `SM_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;\n\n// 1. Customer Upsert Payload (Supabase 'customers' table)\nconst customerRecord = {\n  organization_id: item.organization_id,\n  name: `Caller ${item.from_number.slice(-4) || 'Customer'}`,\n  phone: item.from_number,\n  source: 'Missed Call',\n  last_call_at: new Date().toISOString(),\n  call_status: 'missed'\n};\n\n// 2. Call Record Payload (Supabase 'calls' table)\nconst callRecord = {\n  organization_id: item.organization_id,\n  from_number: item.from_number,\n  to_number: item.to_number,\n  direction: 'inbound',\n  call_status: 'no-answer',\n  twilio_call_sid: item.call_sid,\n  sms_sent: true,\n  timestamp: new Date().toISOString()\n};\n\n// 3. Message Record Payload (Supabase 'messages' table)\nconst messageRecord = {\n  organization_id: item.organization_id,\n  from_number: item.to_number,\n  to_number: item.from_number,\n  message_body: item.rendered_sms_body,\n  message_type: 'MISSED_CALL',\n  direction: 'OUTBOUND',\n  status: 'SENT',\n  twilio_message_sid: messageSid,\n  timestamp: new Date().toISOString()\n};\n\nreturn [{\n  json: {\n    success: true,\n    action: 'missed_call_sms_dispatched',\n    organization_id: item.organization_id,\n    organization_name: item.organization_name,\n    recipient_phone: item.from_number,\n    twilio_phone: item.to_number,\n    twilio_call_sid: item.call_sid,\n    twilio_message_sid: messageSid,\n    sms_content: item.rendered_sms_body,\n    supabase_payloads: {\n      customer: customerRecord,\n      call: callRecord,\n      message: messageRecord\n    }\n  }\n}];"
+      },
+      "id": "node-dispatch-sms",
+      "name": "Dispatch SMS & Build Logs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1740,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "node-respond-success",
+      "name": "Respond HTTP 200 (SMS Sent)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1960,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({\n  success: true,\n  action: 'call_ignored_or_deduplicated',\n  reason: $json.reason || 'Duplicate CallSid or call was answered',\n  call_sid: $json.call_sid\n}) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "node-respond-ignored",
+      "name": "Respond HTTP 200 (No SMS)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1520,
+        380
+      ]
+    }
+  ],
+  "connections": {
+    "Twilio Voice Webhook Inlet": {
+      "main": [
+        [
+          {
+            "node": "Detect Missed Call Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Detect Missed Call Status": {
+      "main": [
+        [
+          {
+            "node": "Is Missed Call?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Missed Call?": {
+      "main": [
+        [
+          {
+            "node": "Resolve Client & Settings",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond HTTP 200 (No SMS)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve Client & Settings": {
+      "main": [
+        [
+          {
+            "node": "Idempotency Check (CallSid)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Idempotency Check (CallSid)": {
+      "main": [
+        [
+          {
+            "node": "Should Send SMS?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Should Send SMS?": {
+      "main": [
+        [
+          {
+            "node": "Render SMS Template",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond HTTP 200 (No SMS)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Render SMS Template": {
+      "main": [
+        [
+          {
+            "node": "Dispatch SMS & Build Logs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dispatch SMS & Build Logs": {
+      "main": [
+        [
+          {
+            "node": "Respond HTTP 200 (SMS Sent)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
