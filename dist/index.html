@@ -1,0 +1,2970 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Brik Systems — Build a Better Business System</title>
+  <meta name="description" content="Brik Systems builds websites and automated systems that help local businesses capture leads, manage customers, collect reviews, and follow up without the manual work." />
+
+  <!-- Official Brik Systems SVG Favicon -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none'><rect width='24' height='24' rx='6' fill='%230f172a'/><rect x='3.5' y='4' width='7.5' height='6.5' rx='1.5' fill='%23ffffff'/><rect x='13' y='4' width='7.5' height='6.5' rx='1.5' fill='%23f97316'/><rect x='3.5' y='13.5' width='7.5' height='6.5' rx='1.5' fill='%23f97316'/><rect x='13' y='13.5' width='7.5' height='6.5' rx='1.5' fill='%23ffffff'/></svg>" />
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            ember: {
+              50: '#fff7ed',
+              100: '#ffedd5',
+              200: '#fed7aa',
+              300: '#fdba74',
+              400: '#fb923c',
+              500: '#f97316',
+              600: '#ea580c',
+              700: '#c2410c',
+              800: '#9a3412',
+              900: '#7c2d12',
+            },
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+          },
+          animation: {
+            'fade-in-up': 'fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+            'float-slow': 'floatSlow 4s ease-in-out infinite',
+            'pulse-subtle': 'pulseSubtle 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            'gradient-flow': 'gradientFlow 8s ease infinite',
+            'shake': 'shake 0.4s ease-in-out',
+          },
+          keyframes: {
+            fadeInUp: {
+              '0%': { opacity: '0', transform: 'translateY(16px)' },
+              '100%': { opacity: '1', transform: 'translateY(0)' },
+            },
+            floatSlow: {
+              '0%, 100%': { transform: 'translateY(0)' },
+              '50%': { transform: 'translateY(-6px)' },
+            },
+            pulseSubtle: {
+              '0%, 100%': { opacity: '1' },
+              '50%': { opacity: '0.6' },
+            },
+            gradientFlow: {
+              '0%, 100%': { backgroundPosition: '0% 50%' },
+              '50%': { backgroundPosition: '100% 50%' },
+            },
+            shake: {
+              '0%, 100%': { transform: 'translateX(0)' },
+              '20%, 60%': { transform: 'translateX(-6px)' },
+              '40%, 80%': { transform: 'translateX(6px)' },
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Supabase JS Client v2 -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- React 18 & ReactDOM -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  
+  <!-- Babel Standalone for JSX -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+
+  
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+    .brik-grid-bg {
+      background-size: 32px 32px;
+      background-image: 
+        linear-gradient(to right, rgba(226, 232, 240, 0.6) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(226, 232, 240, 0.6) 1px, transparent 1px);
+    }
+    .animate-in-up {
+      animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+    /* Smooth custom scrollbars */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f8fafc;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+  </style>
+</head>
+<body class="bg-white text-slate-900 antialiased min-h-screen selection:bg-ember-500 selection:text-white">
+  <div id="root"></div>
+
+  <!-- Main Application Script (Babel/JSX) -->
+  <script type="text/babel">
+    const { useState, useEffect, useMemo, useRef } = React;
+
+    // =========================================================================
+    // Supabase Client Initialization (Direct & Permanent)
+    // =========================================================================
+    const DEFAULT_PROJECT_URL = 'https://qrrdmhwpiiwtixofyvqf.supabase.co';
+    // Permanent Supabase Anon Public Key (Safe for frontend use)
+    const DEFAULT_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFycmRtaHdwaWl3dGl4b2Z5dnFmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgyMDA2MjQsImV4cCI6MjEwMzc3NjYyNH0.K2f7ZRKiCaA9_PJPZZ-sQ2GY0tsxWQsd7hNwHiriEnc';
+
+    const getSupabaseConfig = () => {
+      const url = DEFAULT_PROJECT_URL;
+      const key = DEFAULT_ANON_KEY;
+      return { url, key };
+    };
+
+    let supabaseClient = null;
+    const initClient = (url, key) => {
+      try {
+        if (url && key && window.supabase && window.supabase.createClient) {
+          supabaseClient = window.supabase.createClient(url, key, {
+            auth: {
+              persistSession: true,
+              autoRefreshToken: true,
+              detectSessionInUrl: true,
+            }
+          });
+          return true;
+        }
+      } catch (err) {
+        console.warn('Supabase initialization:', err);
+      }
+      return false;
+    };
+
+    const initialConfig = getSupabaseConfig();
+    if (initialConfig.url && initialConfig.key) {
+      initClient(initialConfig.url, initialConfig.key);
+    }
+
+    // =========================================================================
+    // Pure React SVG Icons (Safe, Fast, Zero DOM Mutation, No Crashes)
+    // =========================================================================
+    const SVG_ICONS = {
+      'arrow-right': (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+      ),
+      'arrow-left': (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
+      ),
+      'user-plus': (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/></svg>
+      ),
+      'hammer': (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full"><path d="m15 12-8.373 8.373a1 1 0 1 1-3-3L12 9"/><path d="m18 15 4-4"/><path d="m21.5 11.5-1.914-1.914A2 2 0 0 1 19 8.172V7l-2.26-2.26a6 6 0 0 0-4.202-1.756L9 2.96l.92.82A6.18 6.18 0 0 1 12 8.4V10l2 2h1.172a2 2 0 0 1 1.414.586L18.5 14.5"/></svg>
+      ),
+      'circle-check': (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
+      ),
+      'message-square-quote': (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 12a2 2 0 0 0 2-2V8H8"/><path d="M14 12a2 2 0 0 0 2-2V8h-2"/></svg>
+      ),
+      'star': (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+      ),
+      'trending-up': (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
+      ),
+      'phone-call': (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+      ),
+      'clock': (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      ),
+      'globe': (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full"><circle cx="12" cy="12" r="10"/><line x1="2" x2="22" y1="12" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+      ),
+      'users': (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      ),
+      'repeat': (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>
+      ),
+      'bot': (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full"><rect width="18" height="12" x="3" y="6" rx="2"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><path d="M12 2v4"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 18v2"/><path d="M9 18v2"/></svg>
+      ),
+      'file-text': (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>
+      ),
+      'zap': (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+      ),
+      'bell-ring': (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/><path d="M4 2C2.8 3.7 2 5.7 2 8"/><path d="M22 8c0-2.3-.8-4.3-2-6"/></svg>
+      ),
+      'layout-dashboard': (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
+      ),
+      'life-buoy': (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full"><circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 4.24 4.24"/><path d="m14.83 9.17 4.24-4.24"/><path d="m14.83 14.83 4.24 4.24"/><path d="m9.17 14.83-4.24 4.24"/><circle cx="12" cy="12" r="4"/></svg>
+      ),
+      'log-out': (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
+      ),
+      'settings': (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+      ),
+      'mail': (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+      ),
+      'phone': (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+      ),
+      'plus': (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full"><line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/></svg>
+      ),
+      'bell': (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+      ),
+      'check': (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full"><polyline points="20 6 9 17 4 12"/></svg>
+      ),
+      'alert-circle': (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
+      ),
+      'database': (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg>
+      ),
+      'loader-2': (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+      ),
+      'search': (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      ),
+      'filter': (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+      ),
+      'trash-2': (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
+      ),
+      'edit': (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      ),
+      'eye': (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+      ),
+      'chevron-down': (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full"><polyline points="6 9 12 15 18 9"/></svg>
+      ),
+      'x': (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full"><line x1="18" x2="6" y1="6" y2="18"/><line x1="6" x2="18" y1="6" y2="18"/></svg>
+      ),
+      'refresh-cw': (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+      ),
+    };
+
+    function Icon({ name, className = "w-5 h-5", color }) {
+      const iconSvg = SVG_ICONS[name] || SVG_ICONS['check'];
+      return (
+        <span className={`inline-flex items-center justify-center shrink-0 ${className}`} style={{ color }} aria-hidden="true">
+          {iconSvg}
+        </span>
+      );
+    }
+
+    // =========================================================================
+    // Brik Systems Official Logo Component
+    // =========================================================================
+    function BrikLogo({ className = "h-5 w-5" }) {
+      return (
+        <span className="relative inline-flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 shadow-sm transition-transform hover:scale-105" aria-hidden="true">
+          <svg viewBox="0 0 24 24" className={className} fill="none">
+            <rect x="3" y="4" width="8" height="6" rx="1" fill="#fff"></rect>
+            <rect x="13" y="4" width="8" height="6" rx="1" fill="#f97316"></rect>
+            <rect x="3" y="14" width="8" height="6" rx="1" fill="#f97316"></rect>
+            <rect x="13" y="14" width="8" height="6" rx="1" fill="#fff"></rect>
+          </svg>
+        </span>
+      );
+    }
+
+    // =========================================================================
+    // Homepage interactive dashboard demo (local-only — does not touch real data)
+    // =========================================================================
+    const DEMO_OWNER_NAME = 'Maya Chen';
+    const DEMO_JOB_STATUSES = ['Pending', 'In Progress', 'Completed'];
+
+    const demoStatusTone = (status) => {
+      if (status === 'Completed') return 'bg-emerald-50 text-emerald-700';
+      if (status === 'In Progress') return 'bg-ember-50 text-ember-700';
+      if (status === 'Won' || status === 'Booked') return 'bg-emerald-50 text-emerald-700';
+      if (status === 'Contacted') return 'bg-amber-50 text-amber-700';
+      return 'bg-slate-100 text-slate-600';
+    };
+
+    const INITIAL_DEMO_DASHBOARD = {
+      jobs: [
+        { id: 'dj1', customer: 'John Smith', service: 'Drain Cleaning', status: 'Completed' },
+        { id: 'dj2', customer: 'Sarah Wilson', service: 'Water Heater Repair', status: 'In Progress' },
+        { id: 'dj3', customer: 'Mike Brown', service: 'Pipe Repair', status: 'Pending' },
+      ],
+      leads: [
+        { id: 'dl1', name: 'Priya Patel', email: 'priya@example.com', phone: '(555) 204-1188', service: 'Boiler install', status: 'New' },
+        { id: 'dl2', name: 'Chris Nguyen', email: 'chris@example.com', phone: '(555) 441-9020', service: 'Leak inspection', status: 'Contacted' },
+        { id: 'dl3', name: 'Elena Rossi', email: 'elena@example.com', phone: '(555) 773-0142', service: 'Bathroom remodel', status: 'New' },
+      ],
+      customers: [
+        { id: 'dc1', name: 'John Smith', jobs: 4, phone: '(555) 201-0091' },
+        { id: 'dc2', name: 'Sarah Wilson', jobs: 2, phone: '(555) 882-4410' },
+        { id: 'dc3', name: 'Mike Brown', jobs: 1, phone: '(555) 330-7755' },
+      ],
+      reviews: [
+        { id: 'dr1', name: 'John Smith', stars: 5, text: 'Showed up fast and fixed the drain the same day.' },
+        { id: 'dr2', name: 'Lena Ortiz', stars: 5, text: 'Clear pricing and a follow-up text after the job. Easy.' },
+      ],
+      automations: [
+        { id: 'da1', name: 'Missed Call → SMS', active: true },
+        { id: 'da2', name: 'Job Completed → Review Request', active: true },
+        { id: 'da3', name: 'Delayed Follow-Up', active: false },
+      ],
+      settings: { company: 'Northside Plumbing', phone: '(555) 014-2208', city: 'Austin, TX' },
+    };
+
+    function HomeDemoDashboard({ variant = 'hero' }) {
+      const [tab, setTab] = useState('overview');
+      const [jobs, setJobs] = useState(INITIAL_DEMO_DASHBOARD.jobs);
+      const [leads, setLeads] = useState(INITIAL_DEMO_DASHBOARD.leads);
+      const [customers, setCustomers] = useState(INITIAL_DEMO_DASHBOARD.customers);
+      const [reviews, setReviews] = useState(INITIAL_DEMO_DASHBOARD.reviews);
+      const [automations, setAutomations] = useState(INITIAL_DEMO_DASHBOARD.automations);
+      const [settings, setSettings] = useState(INITIAL_DEMO_DASHBOARD.settings);
+      const [notice, setNotice] = useState('Click around — this is a live demo, not the real portal.');
+      const [showNewJob, setShowNewJob] = useState(false);
+      const [newJob, setNewJob] = useState({ customer: '', service: '' });
+
+      const nav = [
+        { id: 'overview', label: 'Overview', icon: 'layout-dashboard' },
+        { id: 'jobs', label: 'Jobs', icon: 'hammer' },
+        { id: 'leads', label: 'Leads', icon: 'user-plus' },
+        { id: 'customers', label: 'Customers', icon: 'users' },
+        { id: 'reviews', label: 'Reviews', icon: 'message-square-quote' },
+        { id: 'automations', label: 'Automations', icon: 'repeat' },
+        { id: 'settings', label: 'Settings', icon: 'settings' },
+      ];
+
+      const ping = (msg) => setNotice(msg);
+      const cycleJobStatus = (id) => {
+        setJobs((prev) => prev.map((job) => {
+          if (job.id !== id) return job;
+          const next = DEMO_JOB_STATUSES[(DEMO_JOB_STATUSES.indexOf(job.status) + 1) % DEMO_JOB_STATUSES.length];
+          ping(`${job.customer}: ${job.status} → ${next}`);
+          return { ...job, status: next };
+        }));
+      };
+
+      const addJob = (e) => {
+        e.preventDefault();
+        if (!newJob.customer.trim() || !newJob.service.trim()) return;
+        setJobs((prev) => [{ id: `dj_${Date.now()}`, customer: newJob.customer.trim(), service: newJob.service.trim(), status: 'Pending' }, ...prev]);
+        ping(`Job added for ${newJob.customer.trim()}`);
+        setNewJob({ customer: '', service: '' });
+        setShowNewJob(false);
+        setTab('jobs');
+      };
+
+      const convertLead = (lead) => {
+        setLeads((prev) => prev.map((item) => item.id === lead.id ? { ...item, status: 'Won' } : item));
+        setJobs((prev) => [{ id: `dj_${Date.now()}`, customer: lead.name, service: lead.service, status: 'Pending' }, ...prev]);
+        setCustomers((prev) => prev.some((c) => c.name === lead.name) ? prev : [{ id: `dc_${Date.now()}`, name: lead.name, jobs: 1, phone: lead.phone }, ...prev]);
+        ping(`${lead.name} converted into a job`);
+        setTab('jobs');
+      };
+
+      const requestReview = (job) => {
+        if (job.status !== 'Completed') {
+          ping('Mark the job completed first, then request a review.');
+          return;
+        }
+        setReviews((prev) => [{ id: `dr_${Date.now()}`, name: job.customer, stars: 5, text: 'Review request sent. Waiting on the customer.' }, ...prev]);
+        ping(`Review request sent to ${job.customer}`);
+        setTab('reviews');
+      };
+
+      const stats = [
+        { label: 'New Leads', value: leads.filter((l) => l.status === 'New').length, delta: `+${leads.length}`, icon: 'user-plus', tone: 'text-blue-600 bg-blue-50', tab: 'leads' },
+        { label: 'Active Jobs', value: jobs.filter((j) => j.status !== 'Completed').length, delta: `+${jobs.length}`, icon: 'hammer', tone: 'text-ember-600 bg-ember-50', tab: 'jobs' },
+        { label: 'Completed', value: jobs.filter((j) => j.status === 'Completed').length, delta: '+2', icon: 'circle-check', tone: 'text-emerald-600 bg-emerald-50', tab: 'jobs' },
+        { label: 'Review Requests', value: reviews.length, delta: `+${reviews.length}`, icon: 'message-square-quote', tone: 'text-violet-600 bg-slate-100', tab: 'reviews' },
+      ];
+
+      const isHero = variant === 'hero';
+
+      const dashboardBody = (
+        <div className="flex min-h-0 flex-1 overflow-hidden">
+          <aside className={`hidden shrink-0 flex-col bg-slate-900 sm:flex ${isHero ? 'w-14 p-1.5' : 'w-[188px] p-3'}`}>
+            {!isHero && <div className="px-2 pb-3 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">Brik Systems</div>}
+            <nav className="space-y-0.5">
+              {nav.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  title={item.label}
+                  onClick={() => { setTab(item.id); ping(`Opened ${item.label}`); }}
+                  className={`flex w-full items-center rounded-lg text-left transition ${isHero ? 'justify-center px-0 py-2.5' : 'gap-2.5 px-3 py-2 text-sm'} ${tab === item.id ? 'bg-ember-500 font-medium text-white' : 'text-slate-300 hover:bg-white/5 hover:text-white'}`}
+                >
+                  <Icon name={item.icon} className="h-4 w-4" />
+                  {!isHero && item.label}
+                </button>
+              ))}
+            </nav>
+          </aside>
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+            <div className={`flex items-center justify-between border-b border-slate-100 ${isHero ? 'px-3 py-2' : 'px-4 py-3 sm:px-5'}`}>
+              <div className="min-w-0">
+                <p className="text-[11px] font-medium text-slate-400">Good morning,</p>
+                <p className={`truncate font-bold text-slate-900 ${isHero ? 'text-sm' : 'text-base sm:text-lg'}`}>{DEMO_OWNER_NAME}</p>
+              </div>
+              <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                <Icon name="trending-up" className="h-3 w-3" />
+                Live demo
+              </span>
+            </div>
+            <div className={`flex gap-1 overflow-x-auto border-b border-slate-100 px-2 py-1.5 ${isHero ? 'sm:hidden' : 'md:hidden'}`}>
+              {nav.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setTab(item.id)}
+                  className={`whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-medium ${tab === item.id ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600'}`}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+            {!isHero && notice && (
+              <p className="border-b border-ember-100 bg-ember-50 px-4 py-2 text-[11px] font-medium text-ember-800">{notice}</p>
+            )}
+            <div className={`min-h-0 flex-1 overflow-y-auto ${isHero ? 'p-3' : 'p-4 sm:p-5'}`}>
+              {tab === 'overview' && (
+                <div>
+                  <div className={`grid grid-cols-2 ${isHero ? 'gap-2' : 'gap-3'}`}>
+                    {stats.map((card) => (
+                      <button
+                        key={card.label}
+                        type="button"
+                        onClick={() => { setTab(card.tab); ping(`Opened ${card.label}`); }}
+                        className={`rounded-xl border border-slate-100 bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow ${isHero ? 'p-2.5' : 'p-3.5'}`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className={`inline-flex items-center justify-center rounded-lg ${card.tone} ${isHero ? 'h-7 w-7' : 'h-8 w-8'}`}>
+                            <Icon name={card.icon} className={isHero ? 'h-3.5 w-3.5' : 'h-4 w-4'} />
+                          </span>
+                          <span className="text-[10px] font-semibold text-emerald-600">{card.delta}</span>
+                        </div>
+                        <p className={`mt-2 font-bold text-slate-900 ${isHero ? 'text-xl leading-none' : 'text-2xl'}`}>{card.value}</p>
+                        <p className="mt-1 text-[11px] text-slate-500">{card.label}</p>
+                      </button>
+                    ))}
+                  </div>
+                  <div className={`rounded-xl border border-slate-100 bg-slate-50/60 ${isHero ? 'mt-2.5 p-2.5' : 'mt-4 p-4'}`}>
+                    <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Workflow</p>
+                    <div className="flex items-center justify-between gap-0.5">
+                      {[
+                        { label: isHero ? 'Lead' : 'New Lead', icon: 'user-plus', tab: 'leads' },
+                        { label: isHero ? 'Job' : 'In Progress', icon: 'hammer', tab: 'jobs' },
+                        { label: isHero ? 'Done' : 'Completed', icon: 'circle-check', tab: 'jobs' },
+                        { label: isHero ? 'Ask' : 'Review Requested', icon: 'message-square-quote', tab: 'reviews' },
+                        { label: isHero ? 'Review' : 'Review Received', icon: 'star', tab: 'reviews' },
+                      ].map((step, idx, arr) => (
+                        <div key={step.label} className="flex min-w-0 flex-1 items-center">
+                          <button type="button" onClick={() => setTab(step.tab)} className="flex min-w-0 flex-1 flex-col items-center gap-1 text-center">
+                            <span className={`inline-flex items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:border-ember-300 hover:text-ember-600 ${isHero ? 'h-7 w-7' : 'h-9 w-9'}`}>
+                              <Icon name={step.icon} className={isHero ? 'h-3.5 w-3.5' : 'h-4 w-4'} />
+                            </span>
+                            <span className="w-full truncate text-[9px] font-medium leading-tight text-slate-500">{step.label}</span>
+                          </button>
+                          {idx < arr.length - 1 && <Icon name="arrow-right" className="h-3 w-3 shrink-0 text-slate-300" />}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {tab === 'jobs' && (
+                <div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-bold text-slate-900">Jobs</h3>
+                      <p className="text-sm text-slate-500">Click a status to move the job forward.</p>
+                    </div>
+                    <button type="button" onClick={() => setShowNewJob((v) => !v)} className="rounded-lg bg-ember-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-ember-600">
+                      + New Job
+                    </button>
+                  </div>
+                  {showNewJob && (
+                    <form onSubmit={addJob} className="mt-3 grid gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:grid-cols-[1fr_1fr_auto]">
+                      <input value={newJob.customer} onChange={(e) => setNewJob({ ...newJob, customer: e.target.value })} placeholder="Customer name" className="h-9 rounded-md border border-slate-300 px-3 text-sm" />
+                      <input value={newJob.service} onChange={(e) => setNewJob({ ...newJob, service: e.target.value })} placeholder="Service" className="h-9 rounded-md border border-slate-300 px-3 text-sm" />
+                      <button type="submit" className="h-9 rounded-md bg-slate-900 px-4 text-sm font-medium text-white">Add</button>
+                    </form>
+                  )}
+                  <div className="mt-4 overflow-hidden rounded-xl border border-slate-100">
+                    <table className="w-full text-left text-sm">
+                      <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
+                        <tr>
+                          <th className="px-4 py-3 font-medium">Customer</th>
+                          <th className="px-4 py-3 font-medium">Service</th>
+                          <th className="px-4 py-3 font-medium">Status</th>
+                          <th className="px-4 py-3 font-medium"></th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {jobs.map((job) => (
+                          <tr key={job.id} className="hover:bg-slate-50">
+                            <td className="px-4 py-3 font-medium text-slate-900">{job.customer}</td>
+                            <td className="px-4 py-3 text-slate-600">{job.service}</td>
+                            <td className="px-4 py-3">
+                              <button type="button" onClick={() => cycleJobStatus(job.id)} className={`rounded-full px-2.5 py-1 text-xs font-medium ${demoStatusTone(job.status)}`}>
+                                {job.status}
+                              </button>
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <button type="button" onClick={() => requestReview(job)} className="text-xs font-semibold text-ember-600 hover:underline">Review</button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {tab === 'leads' && (
+                <div className="space-y-2">
+                  <h3 className="text-lg font-bold text-slate-900">Leads</h3>
+                  <p className="text-sm text-slate-500">Convert a lead to create a job.</p>
+                  {leads.map((lead) => (
+                    <div key={lead.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-100 bg-white p-3.5">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">{lead.name}</p>
+                        <p className="text-xs text-slate-500">{lead.service} · {lead.email}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${demoStatusTone(lead.status)}`}>{lead.status}</span>
+                        {lead.status !== 'Won' && (
+                          <button type="button" onClick={() => convertLead(lead)} className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white">Convert</button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {tab === 'customers' && (
+                <div className="space-y-2">
+                  <h3 className="text-lg font-bold text-slate-900">Customers</h3>
+                  {customers.map((customer) => (
+                    <button
+                      key={customer.id}
+                      type="button"
+                      onClick={() => { setTab('jobs'); ping(`Showing jobs related to ${customer.name}`); }}
+                      className="flex w-full items-center justify-between rounded-xl border border-slate-100 bg-white p-3.5 text-left hover:border-slate-300"
+                    >
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">{customer.name}</p>
+                        <p className="text-xs text-slate-500">{customer.phone}</p>
+                      </div>
+                      <span className="text-xs font-medium text-slate-500">{customer.jobs} jobs</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {tab === 'reviews' && (
+                <div className="space-y-2">
+                  <h3 className="text-lg font-bold text-slate-900">Reviews</h3>
+                  {reviews.map((review) => (
+                    <div key={review.id} className="rounded-xl border border-slate-100 bg-white p-3.5">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-semibold text-slate-900">{review.name}</p>
+                        <span className="text-xs font-semibold text-ember-600">{'★'.repeat(review.stars)}</span>
+                      </div>
+                      <p className="mt-1 text-sm text-slate-600">{review.text}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {tab === 'automations' && (
+                <div className="space-y-2">
+                  <h3 className="text-lg font-bold text-slate-900">Automations</h3>
+                  <p className="text-sm text-slate-500">Toggle these on or off — demo only.</p>
+                  {automations.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => {
+                        setAutomations((prev) => prev.map((row) => row.id === item.id ? { ...row, active: !row.active } : row));
+                        ping(`${item.name} ${item.active ? 'turned off' : 'turned on'}`);
+                      }}
+                      className="flex w-full items-center justify-between rounded-xl border border-slate-100 bg-white p-3.5 text-left"
+                    >
+                      <span className="text-sm font-medium text-slate-900">{item.name}</span>
+                      <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${item.active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                        {item.active ? 'ON' : 'OFF'}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {tab === 'settings' && (
+                <form
+                  onSubmit={(e) => { e.preventDefault(); ping('Demo settings saved locally.'); }}
+                  className="space-y-3"
+                >
+                  <h3 className="text-lg font-bold text-slate-900">Settings</h3>
+                  <label className="block text-xs font-medium text-slate-500">Company
+                    <input value={settings.company} onChange={(e) => setSettings({ ...settings, company: e.target.value })} className="mt-1 h-10 w-full rounded-md border border-slate-300 px-3 text-sm text-slate-900" />
+                  </label>
+                  <label className="block text-xs font-medium text-slate-500">Phone
+                    <input value={settings.phone} onChange={(e) => setSettings({ ...settings, phone: e.target.value })} className="mt-1 h-10 w-full rounded-md border border-slate-300 px-3 text-sm text-slate-900" />
+                  </label>
+                  <label className="block text-xs font-medium text-slate-500">City
+                    <input value={settings.city} onChange={(e) => setSettings({ ...settings, city: e.target.value })} className="mt-1 h-10 w-full rounded-md border border-slate-300 px-3 text-sm text-slate-900" />
+                  </label>
+                  <button type="submit" className="h-10 rounded-md bg-ember-500 px-4 text-sm font-semibold text-white">Save demo settings</button>
+                </form>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+
+      if (variant === 'wide') {
+        return (
+          <div className="flex h-[420px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
+            {dashboardBody}
+          </div>
+        );
+      }
+
+      return (
+        <div className="relative mx-auto w-full max-w-[520px] lg:ml-auto lg:mr-0 lg:max-w-none">
+          <div className="pointer-events-none absolute -inset-3 -z-10 rounded-[1.75rem] bg-gradient-to-tr from-ember-100/60 via-slate-100/40 to-transparent blur-2xl"></div>
+          <div className="flex h-[360px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/10 ring-1 ring-slate-900/5 sm:h-[384px] lg:h-[400px]">
+            <div className="flex shrink-0 items-center gap-1.5 border-b border-slate-100 bg-slate-50/80 px-3 py-2">
+              <span className="h-2.5 w-2.5 rounded-full bg-slate-300"></span>
+              <span className="h-2.5 w-2.5 rounded-full bg-slate-300"></span>
+              <span className="h-2.5 w-2.5 rounded-full bg-slate-300"></span>
+              <span className="ml-2 truncate text-[11px] font-medium text-slate-400">app.briksystems.io</span>
+              <span className="ml-auto hidden text-[10px] font-medium text-slate-400 sm:inline">Try clicking around</span>
+            </div>
+            {dashboardBody}
+          </div>
+        </div>
+      );
+    }
+
+    function ContactInquiryForm({ onSubmitInquiry }) {
+      const [submitting, setSubmitting] = useState(false);
+      const [sent, setSent] = useState(false);
+      const inputClass = 'flex h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ember-500';
+
+      if (sent) {
+        return (
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-8 text-center">
+            <Icon name="circle-check" className="mx-auto h-10 w-10 text-emerald-600" />
+            <h3 className="mt-4 text-xl font-bold text-slate-900">Inquiry sent</h3>
+            <p className="mt-2 text-sm text-slate-600">We received your details and will follow up by email shortly.</p>
+            <button type="button" onClick={() => setSent(false)} className="mt-6 text-sm font-semibold text-ember-600 hover:underline">Send another</button>
+          </div>
+        );
+      }
+
+      return (
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault();
+            const f = new FormData(e.target);
+            setSubmitting(true);
+            const ok = await onSubmitInquiry({
+              first_name: f.get('first_name'),
+              last_name: f.get('last_name'),
+              email: f.get('email'),
+              phone: f.get('phone'),
+              business: f.get('business'),
+              city: f.get('city'),
+              website: f.get('website'),
+              service: f.get('type') || 'Custom System',
+              source: f.get('hear') || 'Website Contact Form',
+              notes: [
+                f.get('message'),
+                f.get('business') ? `Business: ${f.get('business')}` : '',
+                f.get('city') ? `City: ${f.get('city')}` : '',
+                f.get('website') ? `Website: ${f.get('website')}` : '',
+                f.get('hear') ? `Heard about us: ${f.get('hear')}` : '',
+              ].filter(Boolean).join('\n'),
+            });
+            setSubmitting(false);
+            if (ok) {
+              e.target.reset();
+              setSent(true);
+            }
+          }}
+          className="space-y-5"
+        >
+          <div className="grid gap-5 sm:grid-cols-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium leading-none" htmlFor="first_name">First name *</label>
+              <input required id="first_name" name="first_name" placeholder="Maya" className={inputClass} />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium leading-none" htmlFor="last_name">Last name *</label>
+              <input required id="last_name" name="last_name" placeholder="Chen" className={inputClass} />
+            </div>
+          </div>
+          <div className="grid gap-5 sm:grid-cols-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium leading-none" htmlFor="email">Email *</label>
+              <input required type="email" id="email" name="email" placeholder="you@business.com" className={inputClass} />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium leading-none" htmlFor="phone">Phone number *</label>
+              <input required type="tel" id="phone" name="phone" placeholder="(555) 000-1234" className={inputClass} />
+            </div>
+          </div>
+          <div className="grid gap-5 sm:grid-cols-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium leading-none" htmlFor="business">Business name *</label>
+              <input required id="business" name="business" placeholder="Northside Plumbing" className={inputClass} />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium leading-none" htmlFor="city">City</label>
+              <input id="city" name="city" placeholder="Austin, TX" className={inputClass} />
+            </div>
+          </div>
+          <div className="grid gap-5 sm:grid-cols-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium leading-none" htmlFor="type">What do you need? *</label>
+              <select required id="type" name="type" defaultValue="" className={inputClass}>
+                <option value="" disabled>Select one</option>
+                <option>Website</option>
+                <option>Lead System</option>
+                <option>Review System</option>
+                <option>Follow-Up Automation</option>
+                <option>Full Business System</option>
+                <option>Not sure yet</option>
+              </select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium leading-none" htmlFor="website">Current website</label>
+              <input id="website" name="website" placeholder="https://" className={inputClass} />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium leading-none" htmlFor="hear">How did you hear about us?</label>
+            <select id="hear" name="hear" defaultValue="Website Contact Form" className={inputClass}>
+              <option>Website Contact Form</option>
+              <option>Google</option>
+              <option>Referral</option>
+              <option>Social media</option>
+              <option>Other</option>
+            </select>
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium leading-none" htmlFor="message">Tell us about the business *</label>
+            <textarea required id="message" name="message" rows="4" placeholder="What kind of work do you do, and what should the system handle?" className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ember-500"></textarea>
+          </div>
+          <button type="submit" disabled={submitting} className="inline-flex w-full items-center justify-center whitespace-nowrap rounded-md bg-ember-500 px-8 h-11 text-sm font-semibold text-white shadow transition hover:bg-ember-600 disabled:opacity-60">
+            {submitting ? 'Sending…' : 'Book a Call'}
+          </button>
+        </form>
+      );
+    }
+
+    function WorkCardArt({ kind, className = '' }) {
+      const arts = {
+        plumbing: (
+          <svg viewBox="0 0 640 400" className="h-full w-full" preserveAspectRatio="xMidYMid slice">
+            <defs>
+              <linearGradient id="plumbSky" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stopColor="#0f172a" />
+                <stop offset="100%" stopColor="#1e3a5f" />
+              </linearGradient>
+            </defs>
+            <rect width="640" height="400" fill="url(#plumbSky)" />
+            <circle cx="520" cy="-20" r="160" fill="#f97316" opacity="0.18" />
+            <rect x="70" y="210" width="500" height="28" rx="14" fill="#fdba74" />
+            <rect x="90" y="120" width="28" height="180" rx="14" fill="#fb923c" />
+            <rect x="250" y="80" width="28" height="220" rx="14" fill="#f97316" />
+            <rect x="410" y="150" width="28" height="150" rx="14" fill="#fb923c" />
+            <circle cx="104" cy="120" r="22" fill="#fff7ed" />
+            <circle cx="264" cy="80" r="22" fill="#fff7ed" />
+            <circle cx="424" cy="150" r="22" fill="#fff7ed" />
+            <rect x="88" y="268" width="160" height="70" rx="12" fill="#ffffff" opacity="0.12" />
+            <text x="108" y="310" fill="#fff" fontFamily="Inter,sans-serif" fontSize="18" fontWeight="700">Quote in 60s</text>
+          </svg>
+        ),
+        hvac: (
+          <svg viewBox="0 0 640 400" className="h-full w-full" preserveAspectRatio="xMidYMid slice">
+            <rect width="640" height="400" fill="#1c1917" />
+            <rect x="90" y="110" width="280" height="200" rx="24" fill="#292524" stroke="#f97316" strokeWidth="4" />
+            <circle cx="230" cy="210" r="62" fill="#44403c" />
+            <circle cx="230" cy="210" r="28" fill="#f97316" />
+            <path d="M420 90c60 40 60 180 0 220" fill="none" stroke="#fdba74" strokeWidth="10" strokeLinecap="round" opacity="0.7" />
+            <path d="M470 70c80 50 80 210 0 260" fill="none" stroke="#fb923c" strokeWidth="8" strokeLinecap="round" opacity="0.45" />
+            <text x="120" y="330" fill="#fff" fontFamily="Inter,sans-serif" fontSize="18" fontWeight="700">Season-ready installs</text>
+          </svg>
+        ),
+        landscape: (
+          <svg viewBox="0 0 640 400" className="h-full w-full" preserveAspectRatio="xMidYMid slice">
+            <rect width="640" height="400" fill="#ecfdf5" />
+            <circle cx="520" cy="70" r="46" fill="#fbbf24" />
+            <path d="M0 280 C120 200 220 320 340 240 C460 160 540 260 640 210 L640 400 L0 400 Z" fill="#059669" />
+            <path d="M0 320 C140 270 250 360 390 300 C510 250 580 330 640 300 L640 400 L0 400 Z" fill="#10b981" />
+            <rect x="86" y="210" width="18" height="90" fill="#92400e" />
+            <circle cx="95" cy="200" r="42" fill="#166534" />
+            <rect x="190" y="230" width="16" height="80" fill="#92400e" />
+            <circle cx="198" cy="220" r="36" fill="#15803d" />
+            <rect x="430" y="200" width="20" height="110" fill="#92400e" />
+            <circle cx="440" cy="188" r="50" fill="#14532d" />
+            <text x="40" y="60" fill="#064e3b" fontFamily="Inter,sans-serif" fontSize="18" fontWeight="700">Yards that sell the next job</text>
+          </svg>
+        ),
+        cleaning: (
+          <svg viewBox="0 0 640 400" className="h-full w-full" preserveAspectRatio="xMidYMid slice">
+            <rect width="640" height="400" fill="#ecfeff" />
+            <rect x="80" y="80" width="480" height="240" rx="28" fill="#ffffff" />
+            <rect x="110" y="120" width="200" height="16" rx="8" fill="#a5f3fc" />
+            <rect x="110" y="156" width="140" height="16" rx="8" fill="#cffafe" />
+            <circle cx="430" cy="200" r="70" fill="#22d3ee" opacity="0.25" />
+            <path d="M400 230 l30 30 70-80" fill="none" stroke="#0891b2" strokeWidth="12" strokeLinecap="round" />
+            <text x="110" y="250" fill="#0e7490" fontFamily="Inter,sans-serif" fontSize="18" fontWeight="700">Spotless, on schedule</text>
+          </svg>
+        ),
+        contracting: (
+          <svg viewBox="0 0 640 400" className="h-full w-full" preserveAspectRatio="xMidYMid slice">
+            <rect width="640" height="400" fill="#f8fafc" />
+            <polygon points="320,70 560,200 80,200" fill="#0f172a" />
+            <rect x="140" y="200" width="360" height="150" fill="#1e293b" />
+            <rect x="280" y="240" width="80" height="110" fill="#f97316" />
+            <rect x="180" y="230" width="70" height="50" fill="#e2e8f0" />
+            <rect x="390" y="230" width="70" height="50" fill="#e2e8f0" />
+            <text x="40" y="50" fill="#0f172a" fontFamily="Inter,sans-serif" fontSize="18" fontWeight="700">From bid to final review</text>
+          </svg>
+        ),
+        auto: (
+          <svg viewBox="0 0 640 400" className="h-full w-full" preserveAspectRatio="xMidYMid slice">
+            <rect width="640" height="400" fill="#111827" />
+            <ellipse cx="320" cy="310" rx="210" ry="18" fill="#1f2937" />
+            <path d="M120 250 l70-70 h220 l90 70 h40 v40 h-50 a40 40 0 0 1-80 0 h-160 a40 40 0 0 1-80 0 h-50 z" fill="#f97316" />
+            <circle cx="210" cy="290" r="28" fill="#0f172a" stroke="#e2e8f0" strokeWidth="6" />
+            <circle cx="450" cy="290" r="28" fill="#0f172a" stroke="#e2e8f0" strokeWidth="6" />
+            <text x="40" y="70" fill="#fff" fontFamily="Inter,sans-serif" fontSize="18" fontWeight="700">Booked. Detailed. Reviewed.</text>
+          </svg>
+        ),
+      };
+      return <div className={`h-full w-full ${className}`}>{arts[kind] || arts.plumbing}</div>;
+    }
+
+    // =========================================================================
+    // Initial Platform Data Store (Clean Schema — No Fake CRM Data)
+    // =========================================================================
+    const INITIAL_PORTAL_DATA = {
+      leads: [],
+      jobs: [],
+      customers: [],
+      reviews: [],
+      automations: [
+        { id: 'auto_1', name: 'Automation 1: Missed Call → Automatic SMS', channel: 'SMS', trigger: 'missed_call', active: true, statusText: 'ACTIVE', template: "Hey, sorry we missed your call! We're currently helping another customer, but we'll get back to you ASAP. In the meantime, you can fill out this quick form: {{form_url}}" },
+        { id: 'auto_2', name: 'Automation 2: Job Completed → Google Review Request', channel: 'SMS', trigger: 'job_completed', active: false, statusText: 'NEXT UP', template: 'Hi {{customer_name}}, thank you for choosing us! Could you share a quick 5-star Google review? {{review_link}}' },
+        { id: 'auto_3', name: 'Automation 3: Job Completed → Delayed Follow-Up', channel: 'SMS', trigger: 'delayed_followup', active: false, statusText: 'PLANNED', template: 'Hi {{customer_name}}, checking in on your recent service! Need any seasonal maintenance? Enjoy 10% off your next booking.' },
+      ],
+      messages: []
+    };
+
+    function loadStore() {
+      try {
+        const stored = localStorage.getItem('brik_systems_data_v3');
+        if (stored) return JSON.parse(stored);
+      } catch (e) {}
+      localStorage.setItem('brik_systems_data_v3', JSON.stringify(INITIAL_PORTAL_DATA));
+      return INITIAL_PORTAL_DATA;
+    }
+
+    function saveStore(data) {
+      localStorage.setItem('brik_systems_data_v3', JSON.stringify(data));
+    }
+
+    // =========================================================================
+    // Main Application Component
+    // =========================================================================
+    function App() {
+      const [route, setRoute] = useState(() => window.location.hash || '#/');
+      const [data, setData] = useState(loadStore);
+      const [modal, setModal] = useState({ type: null, data: null });
+      const [toast, setToast] = useState(null);
+
+      // Auth & Multi-Tenant State
+      const [user, setUser] = useState(null);
+      const [profile, setProfile] = useState(null);
+      const [organization, setOrganization] = useState(null);
+      const [isAuthenticated, setIsAuthenticated] = useState(false);
+      const [authLoading, setAuthLoading] = useState(true);
+
+      // Real Supabase Leads State
+      const [leads, setLeads] = useState([]);
+      const [leadsLoading, setLeadsLoading] = useState(false);
+      const [leadsError, setLeadsError] = useState('');
+      const [leadSearchTerm, setLeadSearchTerm] = useState('');
+      const [leadStatusFilter, setLeadStatusFilter] = useState('All');
+      const [leadSortBy, setLeadSortBy] = useState('newest');
+      const [activeLead, setActiveLead] = useState(null);
+
+      // Login form inputs
+      const [loginEmail, setLoginEmail] = useState('');
+      const [loginPassword, setLoginPassword] = useState('');
+      const [loginError, setLoginError] = useState('');
+      const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+      // Supabase connection state
+      const [supabaseConfig, setSupabaseConfig] = useState(getSupabaseConfig);
+
+      const authRef = useRef({ isAuthenticated: false, authLoading: true });
+      authRef.current = { isAuthenticated, authLoading };
+
+      // -----------------------------------------------------------------------
+      // Fetch Real Leads from Supabase
+      // -----------------------------------------------------------------------
+      const fetchLeads = async () => {
+        if (!supabaseClient) return;
+        setLeadsLoading(true);
+        setLeadsError('');
+        try {
+          const { data: leadsData, error: leadsErr } = await supabaseClient
+            .from('leads')
+            .select('*')
+            .order('created_at', { ascending: false });
+
+          if (leadsErr) {
+            console.warn('Leads fetch error:', leadsErr);
+            setLeadsError(leadsErr.message || 'Failed to load leads from database.');
+          } else {
+            setLeads(leadsData || []);
+          }
+        } catch (err) {
+          console.error('Leads fetch exception:', err);
+          setLeadsError(err.message || 'An unexpected error occurred loading leads.');
+        } finally {
+          setLeadsLoading(false);
+        }
+      };
+
+      // -----------------------------------------------------------------------
+      // Fetch User Profile and Organization from Supabase
+      // -----------------------------------------------------------------------
+      const loadUserProfile = async (authUser) => {
+        if (!supabaseClient || !authUser) return;
+        try {
+          const { data: profData, error: profErr } = await supabaseClient
+            .from('profiles')
+            .select('*, organization:organizations(*)')
+            .eq('id', authUser.id)
+            .single();
+
+          if (profData && !profErr) {
+            setProfile(profData);
+            if (profData.organization) {
+              setOrganization(profData.organization);
+            }
+          } else {
+            const fallbackProfile = {
+              id: authUser.id,
+              full_name: authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'Client',
+              email: authUser.email,
+              role: 'CLIENT',
+            };
+            setProfile(fallbackProfile);
+            setOrganization({ name: 'Northside Plumbing & Heating', business_type: 'Plumbing & Heating' });
+          }
+          // Load real database leads after profile identification
+          await fetchLeads();
+        } catch (err) {
+          console.warn('Profile load exception:', err);
+          await fetchLeads();
+        }
+      };
+
+      // -----------------------------------------------------------------------
+      // Initialize Supabase Auth & Session Listener
+      // -----------------------------------------------------------------------
+      useEffect(() => {
+        let authSubscription = null;
+
+        const checkSession = async () => {
+          setAuthLoading(true);
+          try {
+            if (supabaseClient) {
+              const { data: sessionData, error: sessionErr } = await supabaseClient.auth.getSession();
+              if (sessionData?.session?.user && !sessionErr) {
+                const currentUser = sessionData.session.user;
+                authRef.current.isAuthenticated = true;
+                authRef.current.authLoading = false;
+                setUser(currentUser);
+                setIsAuthenticated(true);
+                await loadUserProfile(currentUser);
+              } else {
+                authRef.current.isAuthenticated = false;
+                setUser(null);
+                setProfile(null);
+                setOrganization(null);
+                setIsAuthenticated(false);
+                setLeads([]);
+              }
+
+              const { data: listener } = supabaseClient.auth.onAuthStateChange(async (event, session) => {
+                if (session?.user) {
+                  authRef.current.isAuthenticated = true;
+                  authRef.current.authLoading = false;
+                  setUser(session.user);
+                  setIsAuthenticated(true);
+                  await loadUserProfile(session.user);
+                } else {
+                  authRef.current.isAuthenticated = false;
+                  setUser(null);
+                  setProfile(null);
+                  setOrganization(null);
+                  setIsAuthenticated(false);
+                  setLeads([]);
+                }
+              });
+              authSubscription = listener?.subscription;
+            }
+          } catch (e) {
+            console.warn('Auth check error:', e);
+          } finally {
+            authRef.current.authLoading = false;
+            setAuthLoading(false);
+          }
+        };
+
+        checkSession();
+
+        return () => {
+          if (authSubscription) authSubscription.unsubscribe();
+        };
+      }, [supabaseConfig]);
+
+      // -----------------------------------------------------------------------
+      // Route Guarding (Protects /#/portal routes without stale closure race)
+      // -----------------------------------------------------------------------
+      useEffect(() => {
+        const handleHashChange = () => {
+          const currentHash = window.location.hash || '#/';
+          setRoute(currentHash);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+
+          // Only redirect if unauthenticated and finished initial check
+          if (currentHash.startsWith('#/portal') && !authRef.current.isAuthenticated && !authRef.current.authLoading) {
+            setRoute('#/login');
+            window.location.hash = '#/login';
+          }
+        };
+
+        window.addEventListener('hashchange', handleHashChange);
+        return () => window.removeEventListener('hashchange', handleHashChange);
+      }, []);
+
+      const updateData = (updater) => {
+        setData((prev) => {
+          const next = typeof updater === 'function' ? updater(prev) : { ...prev, ...updater };
+          saveStore(next);
+          return next;
+        });
+      };
+
+      const showToast = (msg) => {
+        setToast(msg);
+        setTimeout(() => setToast(null), 3500);
+      };
+
+      // -----------------------------------------------------------------------
+      // Supabase Authentication: Login Handler (Pure Email & Password)
+      // -----------------------------------------------------------------------
+      const handleLoginSubmit = async (e) => {
+        e.preventDefault();
+        setLoginError('');
+        setIsLoggingIn(true);
+
+        const cleanEmail = loginEmail.toLowerCase().trim();
+        const cleanPass = loginPassword.trim();
+
+        try {
+          if (!supabaseClient) {
+            initClient(supabaseConfig.url || DEFAULT_PROJECT_URL, supabaseConfig.key || DEFAULT_ANON_KEY);
+          }
+
+          if (supabaseClient) {
+            const { data: authResult, error: authErr } = await supabaseClient.auth.signInWithPassword({
+              email: cleanEmail,
+              password: cleanPass,
+            });
+
+            if (authErr) {
+              setLoginError('Invalid email or password. Please check your credentials and try again.');
+              setIsLoggingIn(false);
+              return;
+            }
+
+            if (authResult?.user) {
+              authRef.current.isAuthenticated = true;
+              authRef.current.authLoading = false;
+              setUser(authResult.user);
+              setIsAuthenticated(true);
+              setRoute('#/portal');
+              window.location.hash = '#/portal';
+              showToast(`Welcome back, ${authResult.user.email}!`);
+              setLoginPassword('');
+              await loadUserProfile(authResult.user);
+            }
+          } else {
+            setLoginError('Database connection initializing. Please try again in a moment.');
+          }
+        } catch (err) {
+          setLoginError('Invalid email or password. Please check your credentials and try again.');
+        } finally {
+          setIsLoggingIn(false);
+        }
+      };
+
+      // -----------------------------------------------------------------------
+      // Supabase Authentication: Logout Handler (Redirects to Homepage #/)
+      // -----------------------------------------------------------------------
+      const handleLogout = async () => {
+        try {
+          if (supabaseClient) {
+            await supabaseClient.auth.signOut();
+          }
+        } catch (e) {}
+
+        authRef.current.isAuthenticated = false;
+        setUser(null);
+        setProfile(null);
+        setOrganization(null);
+        setIsAuthenticated(false);
+        setLeads([]);
+        setLoginEmail('');
+        setLoginPassword('');
+        showToast('Logged out successfully.');
+        setRoute('#/');
+        window.location.hash = '#/';
+      };
+
+      // -----------------------------------------------------------------------
+      // REAL SUPABASE LEADS CRUD HANDLERS
+      // -----------------------------------------------------------------------
+      const handleCreateLead = async (leadInput) => {
+        const orgId = profile?.organization_id || organization?.id || '00000000-0000-0000-0000-000000000001';
+        const firstName = (leadInput.first_name || '').trim();
+        const lastName = (leadInput.last_name || '').trim();
+        const fullName = leadInput.name ? leadInput.name.trim() : `${firstName} ${lastName}`.trim() || 'New Inquiry';
+
+        const newLeadPayload = {
+          organization_id: orgId,
+          first_name: firstName || fullName.split(' ')[0] || '',
+          last_name: lastName || fullName.split(' ').slice(1).join(' ') || '',
+          name: fullName,
+          email: (leadInput.email || '').trim() || null,
+          phone: (leadInput.phone || '').trim() || null,
+          service_requested: (leadInput.service || leadInput.service_requested || '').trim() || 'General Service',
+          source: leadInput.source || 'Manual Entry',
+          status: leadInput.status || 'New',
+          notes: (leadInput.notes || '').trim() || null,
+        };
+
+        const addLocalFallback = () => {
+          const fallbackRecord = {
+            id: `lead_${Date.now()}`,
+            ...newLeadPayload,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          };
+          setLeads((prev) => [fallbackRecord, ...prev]);
+          if (!leadInput.silent) showToast(`Lead created (${fullName})`);
+        };
+
+        if (!supabaseClient) {
+          addLocalFallback();
+          setModal({ type: null });
+          return true;
+        }
+
+        try {
+          const { data: newRecord, error } = await supabaseClient
+            .from('leads')
+            .insert([newLeadPayload])
+            .select()
+            .single();
+
+          if (error) {
+            console.error('Supabase create lead error:', error);
+            // Fallback for demo local state if RLS blocks without profile
+            const fallbackRecord = {
+              id: `lead_${Date.now()}`,
+              ...newLeadPayload,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            };
+            setLeads((prev) => [fallbackRecord, ...prev]);
+            if (!leadInput.silent) showToast(`Lead created (${fullName})`);
+          } else if (newRecord) {
+            setLeads((prev) => [newRecord, ...prev]);
+            if (!leadInput.silent) showToast(`Lead "${fullName}" created successfully in Supabase!`);
+          }
+          setModal({ type: null });
+          return true;
+        } catch (err) {
+          console.error('Exception creating lead:', err);
+          showToast(`Error: ${err.message}`);
+          return false;
+        }
+      };
+
+      const handleContactInquiry = async (leadInput) => {
+        const firstName = (leadInput.first_name || '').trim();
+        const lastName = (leadInput.last_name || '').trim();
+        const fullName = `${firstName} ${lastName}`.trim();
+        let emailed = false;
+
+        try {
+          const emailRes = await fetch('https://formsubmit.co/ajax/ipethankuds@gmail.com', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+            body: JSON.stringify({
+              _subject: `New Brik Systems inquiry from ${fullName || 'website'}`,
+              _template: 'table',
+              _captcha: 'false',
+              _replyto: (leadInput.email || '').trim(),
+              first_name: firstName,
+              last_name: lastName,
+              name: fullName,
+              email: (leadInput.email || '').trim(),
+              phone: (leadInput.phone || '').trim(),
+              business: (leadInput.business || '').trim(),
+              service_needed: (leadInput.service || '').trim(),
+              notes: (leadInput.notes || '').trim(),
+            }),
+          });
+          emailed = emailRes.ok;
+        } catch (err) {
+          console.warn('Contact email send failed:', err);
+        }
+
+        await handleCreateLead({
+          ...leadInput,
+          name: fullName,
+          source: leadInput.source || 'Website Contact Form',
+          silent: true,
+        });
+
+        if (emailed) {
+          showToast('Inquiry sent. We will follow up by email.');
+        } else {
+          showToast('Inquiry saved. Confirm the first FormSubmit email to ipethankuds@gmail.com so future messages arrive.');
+        }
+        return true;
+      };
+
+      const handleUpdateLead = async (leadId, updates) => {
+        if (!supabaseClient || !leadId) return;
+        try {
+          const { data: updatedRecord, error } = await supabaseClient
+            .from('leads')
+            .update({
+              ...updates,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', leadId)
+            .select()
+            .single();
+
+          if (error) {
+            console.warn('Update lead error, updating locally:', error);
+            setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, ...updates } : l)));
+          } else if (updatedRecord) {
+            setLeads((prev) => prev.map((l) => (l.id === leadId ? updatedRecord : l)));
+            if (activeLead && activeLead.id === leadId) {
+              setActiveLead(updatedRecord);
+            }
+          }
+          showToast('Lead updated successfully!');
+          if (modal.type === 'edit_lead') setModal({ type: null });
+        } catch (err) {
+          console.error('Exception updating lead:', err);
+          showToast(`Error updating lead: ${err.message}`);
+        }
+      };
+
+      const handleDeleteLead = async (leadId) => {
+        if (!supabaseClient || !leadId) return;
+        try {
+          const { error } = await supabaseClient
+            .from('leads')
+            .delete()
+            .eq('id', leadId);
+
+          if (error) {
+            console.warn('Delete lead error, removing locally:', error);
+          }
+          setLeads((prev) => prev.filter((l) => l.id !== leadId));
+          showToast('Lead deleted.');
+          setModal({ type: null });
+          setActiveLead(null);
+        } catch (err) {
+          console.error('Exception deleting lead:', err);
+          showToast(`Error deleting lead: ${err.message}`);
+        }
+      };
+
+      // -----------------------------------------------------------------------
+      // Computed Filtered & Sorted Leads
+      // -----------------------------------------------------------------------
+      const filteredLeads = useMemo(() => {
+        let result = [...leads];
+        if (leadStatusFilter !== 'All') {
+          result = result.filter((l) => (l.status || '').toLowerCase() === leadStatusFilter.toLowerCase());
+        }
+        if (leadSearchTerm.trim()) {
+          const term = leadSearchTerm.toLowerCase();
+          result = result.filter((l) =>
+            (l.name || '').toLowerCase().includes(term) ||
+            (l.first_name || '').toLowerCase().includes(term) ||
+            (l.last_name || '').toLowerCase().includes(term) ||
+            (l.email || '').toLowerCase().includes(term) ||
+            (l.phone || '').toLowerCase().includes(term) ||
+            (l.service_requested || '').toLowerCase().includes(term) ||
+            (l.notes || '').toLowerCase().includes(term)
+          );
+        }
+        if (leadSortBy === 'newest') {
+          result.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+        } else if (leadSortBy === 'oldest') {
+          result.sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0));
+        }
+        return result;
+      }, [leads, leadStatusFilter, leadSearchTerm, leadSortBy]);
+
+      // Job handler for future Jobs table
+      const handleJobStatusChange = (jobId, newStatus) => {
+        showToast(`Job status updated to ${newStatus}`);
+      };
+
+      // =======================================================================
+      // SHARED MARKETING HEADER
+      // =======================================================================
+      const MarketingHeader = () => (
+        <header className="fixed inset-x-0 top-0 z-50 transition-all duration-300 border-b border-slate-200/80 bg-white/90 backdrop-blur shadow-sm">
+          <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 sm:px-8">
+            <a className="shrink-0 group" href="#/">
+              <span className="inline-flex items-center gap-2.5">
+                <BrikLogo />
+                <span className="text-[15px] font-bold uppercase leading-none tracking-[0.18em] text-slate-900 group-hover:text-ember-600 transition-colors">
+                  Brik<span className="ml-1 font-semibold text-slate-400">Systems</span>
+                </span>
+              </span>
+            </a>
+
+            <nav className="hidden items-center gap-1 md:flex">
+              <a className={`rounded-md px-3 py-2 text-sm font-medium transition-all ${route === '#/' ? 'text-slate-900 font-bold bg-slate-100/70' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'}`} href="#/">Home</a>
+              <a className={`rounded-md px-3 py-2 text-sm font-medium transition-all ${route === '#/services' ? 'text-slate-900 font-bold bg-slate-100/70' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'}`} href="#/services">Services</a>
+              <a className={`rounded-md px-3 py-2 text-sm font-medium transition-all ${route === '#/work' ? 'text-slate-900 font-bold bg-slate-100/70' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'}`} href="#/work">Our Work</a>
+              <a className={`rounded-md px-3 py-2 text-sm font-medium transition-all ${route === '#/about' ? 'text-slate-900 font-bold bg-slate-100/70' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'}`} href="#/about">About</a>
+              <a className={`rounded-md px-3 py-2 text-sm font-medium transition-all ${route === '#/contact' ? 'text-slate-900 font-bold bg-slate-100/70' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'}`} href="#/contact">Contact</a>
+            </nav>
+
+            <div className="flex items-center gap-3">
+              <a
+                className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors hover:bg-slate-100 h-10 px-4 py-2 text-slate-700 hover:text-slate-900"
+                href={isAuthenticated ? "#/portal" : "#/login"}
+              >
+                {isAuthenticated ? "Portal Dashboard →" : "Client Login"}
+              </a>
+              <a className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-semibold transition-all h-10 px-4 py-2 bg-ember-500 text-white shadow-sm hover:bg-ember-600 hover:shadow transform active:scale-95" href="#/contact">
+                Book a Call
+              </a>
+            </div>
+          </div>
+        </header>
+      );
+
+      // =======================================================================
+      // SHARED MARKETING FOOTER
+      // =======================================================================
+      const MarketingFooter = () => (
+        <footer className="border-t border-slate-200 bg-slate-50">
+          <div className="mx-auto max-w-7xl px-5 py-14 sm:px-8">
+            <div className="grid gap-10 md:grid-cols-4">
+              <div className="md:col-span-2">
+                <span className="inline-flex items-center gap-2.5">
+                  <BrikLogo />
+                  <span className="text-[15px] font-bold uppercase leading-none tracking-[0.18em] text-slate-900">
+                    Brik<span className="ml-1 font-semibold text-slate-400">Systems</span>
+                  </span>
+                </span>
+                <p className="mt-4 max-w-sm text-sm leading-relaxed text-slate-600">
+                  Websites and automated systems that help local businesses capture leads, manage jobs, and collect honest reviews without the manual work.
+                </p>
+              </div>
+
+              <div>
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500">Product</h4>
+                <ul className="mt-4 space-y-3">
+                  <li><a className="text-sm text-slate-600 transition-colors hover:text-slate-900" href="#/services">Services</a></li>
+                  <li><a className="text-sm text-slate-600 transition-colors hover:text-slate-900" href="#/work">Our Work</a></li>
+                  <li><a className="text-sm text-slate-600 transition-colors hover:text-slate-900" href="#/login">Client Login</a></li>
+                </ul>
+              </div>
+
+              <div>
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500">Company</h4>
+                <ul className="mt-4 space-y-3">
+                  <li><a className="text-sm text-slate-600 transition-colors hover:text-slate-900" href="#/about">About</a></li>
+                  <li><a className="text-sm text-slate-600 transition-colors hover:text-slate-900" href="#/contact">Contact</a></li>
+                  <li><a className="text-sm text-slate-600 transition-colors hover:text-slate-900" href="#/contact">Book a Call</a></li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="mt-12 flex flex-col items-start justify-between gap-4 border-t border-slate-200 pt-6 sm:flex-row sm:items-center">
+              <p className="text-sm text-slate-500">© 2026 Brik Systems. All rights reserved.</p>
+              <p className="text-sm text-slate-500">Built for local businesses that want to grow.</p>
+            </div>
+          </div>
+        </footer>
+      );
+
+      // =======================================================================
+      // SHARED CTA BANNER
+      // =======================================================================
+      const CtaBanner = () => (
+        <section className="px-5 py-20 sm:px-8 sm:py-28">
+          <div className="relative mx-auto max-w-6xl overflow-hidden rounded-3xl bg-slate-900 px-6 py-16 sm:px-16 shadow-2xl">
+            <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-ember-500/20 blur-3xl animate-pulse-subtle"></div>
+            <div className="pointer-events-none absolute -bottom-20 -left-10 h-64 w-64 rounded-full bg-ember-500/10 blur-3xl animate-pulse-subtle"></div>
+            <div className="relative max-w-2xl">
+              <h2 className="text-3xl font-bold text-white sm:text-4xl">Your Website Should Do More Than Look Good.</h2>
+              <p className="mt-5 text-lg leading-relaxed text-slate-300">
+                Build a system that helps your business capture leads, manage jobs, follow up with customers, and grow.
+              </p>
+              <div className="mt-8">
+                <a className="inline-flex items-center justify-center whitespace-nowrap text-sm font-semibold h-11 rounded-md px-8 bg-ember-500 text-white hover:bg-ember-600 shadow-lg hover:shadow-ember-500/30 transition transform hover:-translate-y-0.5 active:translate-y-0" href="#/contact">
+                  Let's Build It
+                  <Icon name="arrow-right" className="ml-2 h-4 w-4" />
+                </a>
+              </div>
+            </div>
+          </div>
+        </section>
+      );
+
+      // =======================================================================
+      // ROUTING / VIEW CONTROLLER
+      // =======================================================================
+      let mainContent = null;
+
+      // -----------------------------------------------------------------------
+      // VIEW: HOME
+      // -----------------------------------------------------------------------
+      if (route === '#/' || route === '') {
+        const websiteFeatures = ['Mobile responsive', 'Lead forms', 'Quote requests', 'Appointment requests', 'Google Maps', 'SEO foundations'];
+        const buildCards = [
+          { title: 'Websites', desc: 'Modern websites designed to turn visitors into leads.', icon: 'globe', features: websiteFeatures },
+          { title: 'Lead Systems', desc: 'Capture and organize potential customers in one clear pipeline.', icon: 'users' },
+          { title: 'Review Systems', desc: 'Automatically request honest customer feedback after completed jobs.', icon: 'star' },
+          { title: 'Follow-Up Automation', desc: 'Reduce repetitive customer communication with smart follow-ups.', icon: 'repeat' },
+          { title: 'AI Business Automation', desc: 'Use AI to automate repetitive business processes where appropriate.', icon: 'bot' },
+        ];
+        const howSteps = [
+          { n: 1, title: 'Get the Customer', desc: 'A lead contacts the business through the website, phone, or another channel.', icon: 'user-plus', align: 'right' },
+          { n: 2, title: 'Create the Job', desc: 'The business creates a customer and attaches the service or job.', icon: 'file-text', align: 'left' },
+          { n: 3, title: 'Complete the Work', desc: 'The business updates the job status as work progresses.', icon: 'hammer', align: 'right', badge: 'Pending → In Progress → Completed' },
+          { n: 4, title: 'Trigger the System', desc: 'Once the job is completed, the review-request workflow becomes available.', icon: 'zap', align: 'left' },
+          { n: 5, title: 'Request a Review', desc: 'The customer receives a request for honest feedback.', icon: 'message-square-quote', align: 'right' },
+          { n: 6, title: 'Follow Up', desc: 'If enabled, the system can send a follow-up reminder.', icon: 'bell-ring', align: 'left' },
+        ];
+        mainContent = (
+          <div className="flex min-h-screen flex-col bg-white">
+            <MarketingHeader />
+            <main className="flex-1 pt-16">
+              <section className="relative overflow-hidden">
+                <div className="brik-grid-bg pointer-events-none absolute inset-0 opacity-60 [mask-image:radial-gradient(ellipse_at_top,black,transparent_70%)]"></div>
+                <div className="relative mx-auto grid max-w-7xl items-center gap-8 px-5 py-12 sm:px-8 lg:grid-cols-2 lg:gap-12 lg:py-16">
+                  <div className="animate-in-up min-w-0 lg:pr-4">
+                    <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/70 px-3 py-1 text-xs font-medium text-slate-600 shadow-sm">
+                      <span className="h-1.5 w-1.5 rounded-full bg-ember-500"></span>
+                      Websites + Systems for local business
+                    </span>
+                    <h1 className="mt-6 text-4xl font-bold leading-[1.1] text-slate-900 sm:text-5xl lg:text-6xl text-balance">
+                      Build a Better Business System.
+                    </h1>
+                    <p className="mt-6 max-w-xl text-lg leading-relaxed text-slate-600">
+                      Brik Systems builds websites and automated systems that help local businesses capture leads, manage customers, collect reviews, and follow up without the manual work.
+                    </p>
+                    <div className="mt-8 flex flex-wrap gap-3">
+                      <a className="inline-flex items-center justify-center text-sm font-medium h-11 rounded-md px-8 bg-ember-500 text-white hover:bg-ember-600" href="#/contact">
+                        Book a Call
+                        <Icon name="arrow-right" className="ml-2 h-4 w-4" />
+                      </a>
+                      <a className="inline-flex items-center justify-center text-sm font-medium border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 h-11 rounded-md px-8" href="#/work">
+                        See Our Work
+                      </a>
+                    </div>
+                  </div>
+
+                  <div className="animate-in-up min-w-0" style={{ animationDelay: '120ms' }}>
+                    <HomeDemoDashboard variant="hero" />
+                  </div>
+                </div>
+              </section>
+
+              <section className="px-5 py-20 sm:px-8 sm:py-28">
+                <div className="max-w-2xl mx-auto text-center">
+                  <span className="inline-block text-xs font-semibold uppercase tracking-[0.18em] text-ember-600">The real problem</span>
+                  <h2 className="mt-3 text-3xl font-bold text-slate-900 sm:text-4xl">
+                    Most Local Businesses Don't Need More Tools. They Need Better Systems.
+                  </h2>
+                  <p className="mt-4 text-lg leading-relaxed text-slate-600">
+                    Growth rarely stalls because of a missing app. It stalls in the gaps between steps — the follow-ups nobody has time for.
+                  </p>
+                </div>
+                <div className="mx-auto mt-14 grid max-w-5xl gap-6 md:grid-cols-3">
+                  {[
+                    { title: 'Missed Leads', desc: 'Potential customers contact the business, but nobody follows up quickly enough.', icon: 'phone-call' },
+                    { title: 'Manual Follow-Up', desc: 'Business owners waste time remembering to contact customers after completing work.', icon: 'clock' },
+                    { title: 'Forgotten Reviews', desc: 'Happy customers often never leave a review because nobody asks them at the right time.', icon: 'star' },
+                  ].map((card) => (
+                    <div key={card.title} className="group rounded-2xl border border-slate-200 bg-white p-7 transition-all hover:-translate-y-1 hover:border-slate-300 hover:shadow-lg">
+                      <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-ember-50 text-ember-600">
+                        <Icon name={card.icon} className="h-5 w-5" />
+                      </span>
+                      <h3 className="mt-5 text-lg font-semibold text-slate-900">{card.title}</h3>
+                      <p className="mt-2 text-sm leading-relaxed text-slate-600">{card.desc}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="mx-auto mt-10 max-w-3xl rounded-2xl border border-slate-200 bg-slate-50 p-7 text-center">
+                  <p className="text-lg font-medium text-slate-800">
+                    Brik Systems connects your website, leads, jobs, and reviews into one system — so the right thing happens automatically after someone becomes your customer.
+                  </p>
+                </div>
+              </section>
+
+              <section className="bg-slate-50 px-5 py-20 sm:px-8 sm:py-28">
+                <div className="max-w-2xl mx-auto text-center">
+                  <span className="inline-block text-xs font-semibold uppercase tracking-[0.18em] text-ember-600">What we build</span>
+                  <h2 className="mt-3 text-3xl font-bold text-slate-900 sm:text-4xl">Everything Local Businesses Need to Grow</h2>
+                  <p className="mt-4 text-lg leading-relaxed text-slate-600">Start with a website, or build the full system. Each piece works on its own — and better together.</p>
+                </div>
+                <div className="mx-auto mt-14 grid max-w-6xl gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                  {buildCards.map((card) => (
+                    <div key={card.title} className="group flex flex-col rounded-2xl border border-slate-200 bg-white p-7 transition-all hover:-translate-y-1 hover:shadow-lg">
+                      <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-slate-900 text-white transition-colors group-hover:bg-ember-500">
+                        <Icon name={card.icon} className="h-5 w-5" />
+                      </span>
+                      <h3 className="mt-5 text-lg font-semibold text-slate-900">{card.title}</h3>
+                      <p className="mt-2 flex-1 text-sm leading-relaxed text-slate-600">{card.desc}</p>
+                      {card.features && (
+                        <ul className="mt-4 grid grid-cols-2 gap-2">
+                          {card.features.map((feat) => (
+                            <li key={feat} className="flex items-center gap-1.5 text-xs text-slate-500">
+                              <Icon name="circle-check" className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                              {feat}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  ))}
+                  <div className="flex flex-col justify-center rounded-2xl border border-dashed border-slate-300 bg-white p-7">
+                    <h3 className="text-lg font-semibold text-slate-900">Not sure where to start?</h3>
+                    <p className="mt-2 text-sm text-slate-600">Book a call and we'll map the simplest system for your business.</p>
+                    <a className="inline-flex items-center text-sm font-medium mt-2 h-auto justify-start p-0 text-ember-600 hover:underline underline-offset-4" href="#/contact">
+                      Book a Call <Icon name="arrow-right" className="ml-1 h-4 w-4" />
+                    </a>
+                  </div>
+                </div>
+              </section>
+
+              <section className="px-5 py-20 sm:px-8 sm:py-28">
+                <div className="max-w-2xl mx-auto text-center">
+                  <span className="inline-block text-xs font-semibold uppercase tracking-[0.18em] text-ember-600">How Brik Systems works</span>
+                  <h2 className="mt-3 text-3xl font-bold text-slate-900 sm:text-4xl">More Than a Website Company</h2>
+                  <p className="mt-4 text-lg leading-relaxed text-slate-600">One connected workflow takes a customer from first contact all the way to an honest review — mostly on autopilot.</p>
+                </div>
+                <div className="mx-auto mt-14 max-w-4xl">
+                  <div className="relative">
+                    <div className="absolute left-[27px] top-4 bottom-4 w-px bg-slate-200 md:left-1/2"></div>
+                    <div className="space-y-6">
+                      {howSteps.map((step) => (
+                        <div
+                          key={step.n}
+                          className={step.align === 'right'
+                            ? 'relative flex items-start gap-5 md:w-1/2 md:ml-auto md:flex-row-reverse md:text-right md:pl-10'
+                            : 'relative flex items-start gap-5 md:w-1/2 md:pr-10'}
+                        >
+                          <span className="relative z-10 flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-sm">
+                            <Icon name={step.icon} className="h-6 w-6 text-ember-600" />
+                          </span>
+                          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                            <span className="text-xs font-semibold uppercase tracking-wider text-ember-600">Step {step.n}</span>
+                            <h3 className="mt-1 text-lg font-semibold text-slate-900">{step.title}</h3>
+                            <p className="mt-1.5 text-sm leading-relaxed text-slate-600">{step.desc}</p>
+                            {step.badge && (
+                              <span className="mt-3 inline-block rounded-md bg-slate-900 px-2.5 py-1 text-xs font-medium text-white">{step.badge}</span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <section className="bg-slate-50 px-5 py-20 sm:px-8 sm:py-28">
+                <div className="max-w-2xl mx-auto text-center">
+                  <span className="inline-block text-xs font-semibold uppercase tracking-[0.18em] text-ember-600">The platform</span>
+                  <h2 className="mt-3 text-3xl font-bold text-slate-900 sm:text-4xl">One Simple System for Your Day-to-Day Business.</h2>
+                  <p className="mt-4 text-lg leading-relaxed text-slate-600">Leads, jobs, customers, and reviews live together. Jobs are the heart of it — track work from start to finish.</p>
+                </div>
+                <div className="mx-auto mt-14 max-w-5xl">
+                  <HomeDemoDashboard variant="wide" />
+                </div>
+                <div className="mt-8 text-center">
+                  <a className="inline-flex items-center justify-center text-sm font-medium border border-slate-200 bg-white hover:bg-slate-50 h-11 rounded-md px-8" href="#/login">
+                    Explore the Client Portal
+                    <Icon name="arrow-right" className="ml-2 h-4 w-4" />
+                  </a>
+                </div>
+              </section>
+
+              <section className="px-5 py-20 sm:px-8 sm:py-28">
+                <div className="relative mx-auto max-w-6xl overflow-hidden rounded-3xl bg-slate-900 px-6 py-16 sm:px-16">
+                  <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-ember-500/20 blur-3xl"></div>
+                  <div className="pointer-events-none absolute -bottom-20 -left-10 h-64 w-64 rounded-full bg-ember-500/10 blur-3xl"></div>
+                  <div className="relative max-w-2xl">
+                    <h2 className="text-3xl font-bold text-white sm:text-4xl">Your Website Should Do More Than Look Good.</h2>
+                    <p className="mt-5 text-lg leading-relaxed text-slate-300">
+                      Build a system that helps your business capture leads, manage jobs, follow up with customers, and grow.
+                    </p>
+                    <div className="mt-8">
+                      <a className="inline-flex items-center justify-center text-sm font-medium h-11 rounded-md px-8 bg-ember-500 text-white hover:bg-ember-600" href="#/contact">
+                        Let's Build It
+                        <Icon name="arrow-right" className="ml-2 h-4 w-4" />
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </main>
+            <MarketingFooter />
+          </div>
+        );
+      }
+
+      // -----------------------------------------------------------------------
+      // VIEW: SERVICES
+      // -----------------------------------------------------------------------
+      else if (route === '#/services') {
+        mainContent = (
+          <div className="flex min-h-screen flex-col bg-white">
+            <MarketingHeader />
+            <main className="flex-1 pt-16">
+              <section className="relative overflow-hidden px-5 py-20 sm:px-8 sm:py-24">
+                <div className="brik-grid-bg pointer-events-none absolute inset-0 opacity-50 [mask-image:radial-gradient(ellipse_at_top,black,transparent_70%)]"></div>
+                <div className="relative mx-auto max-w-3xl text-center">
+                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-ember-600">Services</span>
+                  <h1 className="mt-4 text-4xl font-bold text-slate-900 sm:text-5xl text-balance">Websites and Systems That Do the Work For You</h1>
+                  <p className="mt-5 text-lg leading-relaxed text-slate-600">Pick the piece you need today. Everything is built to connect into one simple system as your business grows.</p>
+                </div>
+              </section>
+              <CtaBanner />
+            </main>
+            <MarketingFooter />
+          </div>
+        );
+      }
+
+      // -----------------------------------------------------------------------
+      // VIEW: WORK
+      // -----------------------------------------------------------------------
+      else if (route === '#/work') {
+        const portfolio = [
+          { name: 'Northside Plumbing', type: 'Plumbing Company', desc: 'A fast, mobile-first site with quote requests wired straight into a lead pipeline.', art: 'plumbing', tags: ['Website', 'Lead System', 'Review System'] },
+          { name: 'Peak HVAC', type: 'HVAC Company', desc: 'Seasonal service booking with automated review requests after every install.', art: 'hvac', tags: ['Website', 'Review System', 'Follow-Up'] },
+          { name: 'Evergreen Landscaping', type: 'Landscaping Company', desc: 'A visual portfolio site that turns project photos into new estimate requests.', art: 'landscape', tags: ['Website', 'Lead System'] },
+          { name: 'Bright & Clean Co.', type: 'Cleaning Company', desc: 'Recurring-service scheduling with follow-up reminders that keep clients coming back.', art: 'cleaning', tags: ['Website', 'Follow-Up', 'Review System'] },
+          { name: 'Summit Contracting', type: 'Contractor', desc: 'Project-based lead capture with job tracking from first call to final review.', art: 'contracting', tags: ['Website', 'Lead System', 'AI Automation'] },
+          { name: 'Apex Auto Detailing', type: 'Auto Detailing', desc: 'Appointment requests and post-service review prompts in one clean system.', art: 'auto', tags: ['Website', 'Review System'] },
+        ];
+
+        mainContent = (
+          <div className="flex min-h-screen flex-col bg-white">
+            <MarketingHeader />
+            <main className="flex-1 pt-16">
+              <section className="relative overflow-hidden px-5 py-20 sm:px-8 sm:py-24">
+                <div className="brik-grid-bg pointer-events-none absolute inset-0 opacity-50 [mask-image:radial-gradient(ellipse_at_top,black,transparent_70%)]"></div>
+                <div className="relative mx-auto max-w-3xl text-center">
+                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-ember-600">Our Work</span>
+                  <h1 className="mt-4 text-4xl font-bold text-slate-900 sm:text-5xl text-balance">Websites Built for Local Businesses</h1>
+                  <p className="mt-5 text-lg leading-relaxed text-slate-600">A look at the kinds of businesses we build systems for.</p>
+                </div>
+              </section>
+
+              <section className="px-5 pb-8 sm:px-8">
+                <div className="mx-auto grid max-w-6xl gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                  {portfolio.map((item) => (
+                    <article key={item.name} className="group flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl">
+                      <div className="relative aspect-[16/10] overflow-hidden">
+                        <div className="h-full w-full transition-transform duration-500 group-hover:scale-105">
+                          <WorkCardArt kind={item.art} />
+                        </div>
+                        <span className="absolute left-3 top-3 z-20 rounded-full bg-white/90 px-2.5 py-1 text-xs font-medium text-slate-700 backdrop-blur">
+                          {item.type}
+                        </span>
+                      </div>
+                      <div className="flex flex-1 flex-col p-6">
+                        <h2 className="text-lg font-semibold text-slate-900">{item.name}</h2>
+                        <p className="mt-2 flex-1 text-sm leading-relaxed text-slate-600">{item.desc}</p>
+                        <button
+                          onClick={() => setModal({ type: 'view_project', data: item })}
+                          className="mt-5 inline-flex items-center text-sm font-medium text-ember-600 transition-transform group-hover:translate-x-1"
+                        >
+                          View Project <Icon name="arrow-right" className="ml-1 h-4 w-4" />
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </section>
+              <CtaBanner />
+            </main>
+            <MarketingFooter />
+          </div>
+        );
+      }
+
+      // -----------------------------------------------------------------------
+      // VIEW: ABOUT
+      // -----------------------------------------------------------------------
+      else if (route === '#/about') {
+        mainContent = (
+          <div className="flex min-h-screen flex-col bg-white">
+            <MarketingHeader />
+            <main className="flex-1 pt-16">
+              <section className="relative overflow-hidden px-5 py-20 sm:px-8 sm:py-24">
+                <div className="brik-grid-bg pointer-events-none absolute inset-0 opacity-50 [mask-image:radial-gradient(ellipse_at_top,black,transparent_70%)]"></div>
+                <div className="relative mx-auto max-w-3xl text-center">
+                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-ember-600">About Us</span>
+                  <h1 className="mt-4 text-4xl font-bold text-slate-900 sm:text-5xl text-balance">We Build Systems That Help Local Businesses Grow</h1>
+                </div>
+              </section>
+              <CtaBanner />
+            </main>
+            <MarketingFooter />
+          </div>
+        );
+      }
+
+      // -----------------------------------------------------------------------
+      // VIEW: CONTACT
+      // -----------------------------------------------------------------------
+      else if (route === '#/contact') {
+        mainContent = (
+          <div className="flex min-h-screen flex-col bg-white">
+            <MarketingHeader />
+            <main className="flex-1 pt-16">
+              <section className="relative overflow-hidden px-5 py-20 sm:px-8 sm:py-24">
+                <div className="brik-grid-bg pointer-events-none absolute inset-0 opacity-50 [mask-image:radial-gradient(ellipse_at_top,black,transparent_70%)]"></div>
+                <div className="relative mx-auto grid max-w-6xl gap-12 lg:grid-cols-[1fr_1.2fr]">
+                  <div>
+                    <span className="text-xs font-semibold uppercase tracking-[0.18em] text-ember-600">Contact</span>
+                    <h1 className="mt-4 text-4xl font-bold text-slate-900 sm:text-5xl text-balance">Let's Build Your System.</h1>
+                    <p className="mt-5 text-lg leading-relaxed text-slate-600">Tell us about your business and what you need.</p>
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xl sm:p-8">
+                    <ContactInquiryForm onSubmitInquiry={handleContactInquiry} />
+                  </div>
+                </div>
+              </section>
+            </main>
+            <MarketingFooter />
+          </div>
+        );
+      }
+
+      // -----------------------------------------------------------------------
+      // VIEW: LOGIN (SECURED VIA SUPABASE AUTH — NO PUBLIC SIGNUP)
+      // -----------------------------------------------------------------------
+      else if (route === '#/login') {
+        mainContent = (
+          <div className="grid min-h-screen lg:grid-cols-2 bg-white">
+            <div className="flex flex-col justify-center px-6 py-12 sm:px-12">
+              <div className="mx-auto w-full max-w-sm">
+                <a className="inline-flex group" href="#/">
+                  <span className="inline-flex items-center gap-2.5">
+                    <BrikLogo />
+                    <span className="text-[15px] font-bold uppercase leading-none tracking-[0.18em] text-slate-900 group-hover:text-ember-600 transition">
+                      Brik<span className="ml-1 font-semibold text-slate-400">Systems</span>
+                    </span>
+                  </span>
+                </a>
+
+                <div className="mt-12">
+                  <h1 className="text-3xl font-bold text-slate-900">Welcome back</h1>
+                  <p className="mt-2 text-slate-600">Sign in to manage your leads, jobs, and reviews.</p>
+                </div>
+
+                {loginError && (
+                  <div className="mt-6 p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-semibold flex items-center gap-2.5 animate-shake">
+                    <Icon name="alert-circle" className="w-4 h-4 text-red-600 shrink-0" />
+                    <span>{loginError}</span>
+                  </div>
+                )}
+
+                <form onSubmit={handleLoginSubmit} className="mt-6 space-y-5">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium leading-none text-slate-700" htmlFor="email">Email</label>
+                    <input
+                      id="email"
+                      type="email"
+                      required
+                      value={loginEmail}
+                      onChange={(e) => setLoginEmail(e.target.value)}
+                      placeholder="dexter125555@gmail.com"
+                      className="flex h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ember-500 transition"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-medium leading-none text-slate-700" htmlFor="password">Password</label>
+                    </div>
+                    <input
+                      id="password"
+                      type="password"
+                      required
+                      value={loginPassword}
+                      onChange={(e) => setLoginPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="flex h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ember-500 transition"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isLoggingIn}
+                    className="inline-flex items-center justify-center whitespace-nowrap text-sm font-semibold h-11 rounded-md px-8 w-full bg-ember-500 text-white hover:bg-ember-600 shadow-md hover:shadow-ember-500/20 transition transform active:scale-98 disabled:opacity-70"
+                  >
+                    {isLoggingIn ? (
+                      <span className="flex items-center gap-2">
+                        <Icon name="loader-2" className="w-4 h-4 animate-spin" /> Signing in...
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1.5">
+                        Sign In <Icon name="arrow-right" className="ml-1 h-4 w-4" />
+                      </span>
+                    )}
+                  </button>
+                </form>
+
+                <div className="mt-8 pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400">
+                  <span className="text-slate-400">Protected Client Portal</span>
+                  <a className="inline-flex items-center hover:text-slate-900 transition font-medium" href="#/">
+                    <Icon name="arrow-left" className="mr-1 h-3.5 w-3.5" /> Back to website
+                  </a>
+                </div>
+              </div>
+            </div>
+
+            <div className="relative hidden overflow-hidden bg-slate-900 lg:block">
+              <div className="pointer-events-none absolute -right-20 top-20 h-80 w-80 rounded-full bg-ember-500/20 blur-3xl animate-pulse-subtle"></div>
+              <div className="pointer-events-none absolute bottom-10 -left-10 h-72 w-72 rounded-full bg-ember-500/10 blur-3xl animate-pulse-subtle"></div>
+              <div className="relative flex h-full flex-col justify-center px-16">
+                <blockquote className="max-w-md text-2xl font-medium leading-snug text-white">
+                  “Brik Systems doesn't just build my website. It runs the whole process after someone becomes my customer.”
+                </blockquote>
+                <div className="mt-8 space-y-4 max-w-sm">
+                  <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                    <span className="text-slate-400">New Leads</span>
+                    <span className="text-2xl font-bold text-white">{data.leads.length}</span>
+                  </div>
+                  <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                    <span className="text-slate-400">Active Jobs</span>
+                    <span className="text-2xl font-bold text-white">{data.jobs.filter(j => j.status !== 'COMPLETED').length}</span>
+                  </div>
+                  <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                    <span className="text-slate-400">Reviews Received</span>
+                    <span className="text-2xl font-bold text-white">{data.reviews.length}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      // -----------------------------------------------------------------------
+      // VIEW: PORTAL (MULTI-TENANT DASHBOARD)
+      // -----------------------------------------------------------------------
+      else {
+        const currentPortalTab = route.replace('#/portal/', '').replace('#/portal', '') || 'overview';
+        const clientOrgName = organization?.name || 'Northside Plumbing & Heating';
+        const clientUserName = profile?.full_name || (user?.email ? user.email.split('@')[0] : 'Dexter');
+        const userRole = profile?.role || 'CLIENT';
+
+        mainContent = (
+          <div className="min-h-screen bg-slate-50 flex">
+            {/* Desktop Sidebar */}
+            <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r border-slate-200 bg-white lg:flex">
+              <div className="flex h-16 items-center border-b border-slate-100 px-6 justify-between">
+                <a href="#/portal">
+                  <span className="inline-flex items-center gap-2.5">
+                    <BrikLogo />
+                    <span className="text-[15px] font-bold uppercase leading-none tracking-[0.18em] text-slate-900">
+                      Brik<span className="ml-1 font-semibold text-slate-400">Systems</span>
+                    </span>
+                  </span>
+                </a>
+              </div>
+
+              {/* Tenant Client Badge */}
+              <div className="px-5 py-3 bg-slate-50 border-b border-slate-100 flex items-center gap-2.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <div className="overflow-hidden">
+                  <p className="text-xs font-bold text-slate-900 truncate">{clientOrgName}</p>
+                  <p className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">{userRole}</p>
+                </div>
+              </div>
+
+              <nav className="flex-1 space-y-1 px-3 py-4">
+                <p className="px-3 pb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">Menu</p>
+                {[
+                  { id: 'overview', hash: '#/portal', label: 'Overview', icon: 'layout-dashboard' },
+                  { id: 'leads', hash: '#/portal/leads', label: 'Leads', icon: 'user-plus', count: data.leads.filter(l => l.status === 'NEW').length },
+                  { id: 'jobs', hash: '#/portal/jobs', label: 'Jobs', icon: 'hammer', count: data.jobs.filter(j => j.status !== 'COMPLETED').length },
+                  { id: 'customers', hash: '#/portal/customers', label: 'Customers', icon: 'users', count: data.customers.length },
+                  { id: 'reviews', hash: '#/portal/reviews', label: 'Reviews', icon: 'message-square-quote', count: data.reviews.length },
+                  { id: 'automations', hash: '#/portal/automations', label: 'Automations', icon: 'repeat' },
+                  { id: 'settings', hash: '#/portal/settings', label: 'Settings', icon: 'settings' },
+                ].map((item) => {
+                  const isActive = currentPortalTab === item.id;
+                  return (
+                    <a
+                      key={item.id}
+                            className={`group flex items-center justify-between rounded-lg px-3 py-2.5 text-sm font-medium transition-all ${
+                        isActive ? 'bg-slate-100 text-slate-900 font-bold' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Icon name={item.icon} className={`h-4 w-4 ${isActive ? 'text-slate-900' : 'text-slate-400 group-hover:text-slate-600'}`} />
+                        <span>{item.label}</span>
+                      </div>
+                      {item.id === 'leads' && leads.length > 0 && (
+                        <span className="bg-ember-100 text-ember-800 text-xs px-2 py-0.5 rounded-full font-bold">
+                          {leads.length}
+                        </span>
+                      )}
+                    </a>
+                  );
+                })}
+              </nav>
+
+              <div className="border-t border-slate-100 px-3 py-4 space-y-1">
+                <a className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 transition" href="#/contact">
+                  <Icon name="life-buoy" className="h-4 w-4 text-slate-400" /> Help & Support
+                </a>
+                <button
+                  onClick={handleLogout}
+                  className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-600 hover:bg-red-50 hover:text-red-600 transition text-left"
+                >
+                  <Icon name="log-out" className="h-4 w-4 text-slate-400 group-hover:text-red-500" /> Log Out
+                </button>
+              </div>
+            </aside>
+
+            {/* Main Portal View */}
+            <div className="flex-1 lg:pl-64">
+              <div className="sticky top-0 z-40 flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 lg:hidden">
+                <a href="#/portal">
+                  <span className="inline-flex items-center gap-2.5">
+                    <BrikLogo />
+                    <span className="text-[15px] font-bold uppercase leading-none tracking-[0.18em] text-slate-900">
+                      Brik<span className="ml-1 font-semibold text-slate-400">Systems</span>
+                    </span>
+                  </span>
+                </a>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={route}
+                    onChange={(e) => window.location.hash = e.target.value}
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700"
+                  >
+                    <option value="#/portal">Overview</option>
+                    <option value="#/portal/leads">Leads ({leads.length})</option>
+                    <option value="#/portal/jobs">Jobs</option>
+                    <option value="#/portal/customers">Customers</option>
+                    <option value="#/portal/reviews">Reviews</option>
+                    <option value="#/portal/automations">Automations</option>
+                    <option value="#/portal/settings">Settings</option>
+                  </select>
+                  <button
+                    onClick={handleLogout}
+                    className="text-xs bg-slate-100 hover:bg-red-50 text-slate-700 hover:text-red-600 px-2.5 py-1.5 rounded-md font-medium"
+                  >
+                    Log Out
+                  </button>
+                </div>
+              </div>
+
+              <main className="px-4 py-6 sm:px-8 sm:py-8 max-w-6xl mx-auto">
+                {/* ----------------------------------------------------------- */}
+                {/* TAB: OVERVIEW (REAL SUPABASE LEADS & STATS) */}
+                {/* ----------------------------------------------------------- */}
+                {currentPortalTab === 'overview' && (
+                  <div className="animate-fade-in-up space-y-8">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                      <div>
+                        <h1 className="text-2xl font-bold text-slate-900">Good morning, {clientUserName} 👋</h1>
+                        <p className="mt-1 text-slate-500">Live dashboard for <span className="font-semibold text-slate-700">{clientOrgName}</span>.</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setModal({ type: 'add_lead' })}
+                          className="bg-ember-500 hover:bg-ember-600 text-white font-semibold text-sm px-4 py-2 rounded-xl shadow-sm transition flex items-center gap-1.5"
+                        >
+                          <Icon name="plus" className="w-4 h-4" /> Add Lead
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Real KPI Statistics Grid */}
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                      <a href="#/portal/leads" className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 block group">
+                        <div className="flex items-center justify-between">
+                          <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-blue-600 bg-blue-50 group-hover:scale-105 transition-transform">
+                            <Icon name="users" className="h-5 w-5" />
+                          </span>
+                          <span className="text-xs text-blue-600 font-semibold bg-blue-50 px-2 py-0.5 rounded-full">Real Data</span>
+                        </div>
+                        <p className="mt-4 text-3xl font-bold text-slate-900">{leads.length}</p>
+                        <p className="mt-1 text-sm text-slate-500">Total Leads</p>
+                      </a>
+
+                      <a href="#/portal/leads" className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 block group">
+                        <div className="flex items-center justify-between">
+                          <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-ember-600 bg-ember-50 group-hover:scale-105 transition-transform">
+                            <Icon name="user-plus" className="h-5 w-5" />
+                          </span>
+                          <span className="text-xs text-ember-600 font-semibold bg-ember-50 px-2 py-0.5 rounded-full">Active</span>
+                        </div>
+                        <p className="mt-4 text-3xl font-bold text-slate-900">
+                          {leads.filter(l => (l.status || '').toLowerCase() === 'new').length}
+                        </p>
+                        <p className="mt-1 text-sm text-slate-500">New Inquiries</p>
+                      </a>
+
+                      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                        <div className="flex items-center justify-between">
+                          <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-emerald-600 bg-emerald-50">
+                            <Icon name="circle-check" className="h-5 w-5" />
+                          </span>
+                          <span className="text-xs text-emerald-600 font-semibold bg-emerald-50 px-2 py-0.5 rounded-full">Converted</span>
+                        </div>
+                        <p className="mt-4 text-3xl font-bold text-slate-900">
+                          {leads.filter(l => ['won', 'converted', 'booked'].includes((l.status || '').toLowerCase())).length}
+                        </p>
+                        <p className="mt-1 text-sm text-slate-500">Won / Booked</p>
+                      </div>
+
+                      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                        <div className="flex items-center justify-between">
+                          <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-slate-600 bg-slate-100">
+                            <Icon name="hammer" className="h-5 w-5" />
+                          </span>
+                        </div>
+                        <p className="mt-4 text-3xl font-bold text-slate-900">0</p>
+                        <p className="mt-1 text-sm text-slate-500">Active Jobs</p>
+                      </div>
+                    </div>
+
+                    {/* Overview Content Grid */}
+                    <div className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
+                      {/* Recent Leads Feed */}
+                      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h2 className="text-base font-bold text-slate-900">Recent Leads</h2>
+                          <a className="inline-flex items-center text-xs font-semibold text-ember-600 hover:text-ember-700" href="#/portal/leads">
+                            View all ({leads.length}) <Icon name="arrow-right" className="ml-1 h-3.5 w-3.5" />
+                          </a>
+                        </div>
+
+                        {leads.length === 0 ? (
+                          <div className="py-8 text-center space-y-3">
+                            <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
+                              <Icon name="users" className="h-6 w-6" />
+                            </span>
+                            <p className="text-sm font-semibold text-slate-800">No leads yet</p>
+                            <p className="text-xs text-slate-500 max-w-xs mx-auto">Your leads will appear here in real time as they are submitted from your website or added manually.</p>
+                            <button
+                              onClick={() => setModal({ type: 'add_lead' })}
+                              className="text-xs bg-slate-900 hover:bg-slate-800 text-white font-semibold px-3 py-1.5 rounded-lg transition"
+                            >
+                              + Add Lead
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="divide-y divide-slate-100 overflow-hidden">
+                            {leads.slice(0, 5).map((lead) => (
+                              <div key={lead.id} className="py-3 flex items-center justify-between hover:bg-slate-50 rounded-lg px-2 transition-colors">
+                                <div className="space-y-0.5">
+                                  <p className="text-sm font-bold text-slate-900">{lead.name}</p>
+                                  <p className="text-xs text-slate-500">{lead.service_requested || 'General Inquiry'} • <span className="font-mono">{lead.phone || lead.email || 'No phone'}</span></p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full border ${
+                                    (lead.status || '').toLowerCase() === 'new' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                                    (lead.status || '').toLowerCase() === 'won' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                    (lead.status || '').toLowerCase() === 'contacted' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                                    (lead.status || '').toLowerCase() === 'qualified' ? 'bg-purple-50 text-purple-700 border-purple-200' :
+                                    (lead.status || '').toLowerCase() === 'booked' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
+                                    'bg-slate-100 text-slate-600 border-slate-200'
+                                  }`}>
+                                    {lead.status}
+                                  </span>
+                                  <button
+                                    onClick={() => {
+                                      setActiveLead(lead);
+                                      setModal({ type: 'view_lead' });
+                                    }}
+                                    className="p-1 text-slate-400 hover:text-slate-700 rounded transition"
+                                  >
+                                    <Icon name="eye" className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Recent Reviews Placeholder Card */}
+                      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h2 className="text-base font-bold text-slate-900">Recent Reviews</h2>
+                          <span className="text-xs text-slate-400">0 connected</span>
+                        </div>
+                        <div className="py-8 text-center space-y-3">
+                          <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-500">
+                            <Icon name="star" className="h-6 w-6" />
+                          </span>
+                          <p className="text-sm font-semibold text-slate-800">No customer reviews yet</p>
+                          <p className="text-xs text-slate-500">Reviews will automatically stream here once automated post-job review requests are sent and completed.</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ----------------------------------------------------------- */}
+                {/* TAB: LEADS (FULL REAL DATABASE LEADS CRM) */}
+                {/* ----------------------------------------------------------- */}
+                {currentPortalTab === 'leads' && (
+                  <div className="space-y-6 animate-fade-in-up">
+                    {/* Header */}
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                      <div>
+                        <h1 className="text-2xl font-bold text-slate-900">Leads</h1>
+                        <p className="text-slate-500 text-sm">Real database CRM for <span className="font-semibold text-slate-700">{clientOrgName}</span>.</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={fetchLeads}
+                          disabled={leadsLoading}
+                          title="Refresh leads from database"
+                          className="border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold text-sm p-2 rounded-xl transition"
+                        >
+                          <Icon name="refresh-cw" className={`w-4 h-4 ${leadsLoading ? 'animate-spin' : ''}`} />
+                        </button>
+                        <button
+                          onClick={() => setModal({ type: 'add_lead' })}
+                          className="bg-ember-500 hover:bg-ember-600 text-white font-semibold text-sm px-4 py-2 rounded-xl shadow transition flex items-center gap-1.5"
+                        >
+                          <Icon name="plus" className="w-4 h-4" /> Add Lead
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Filter & Search Bar */}
+                    <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
+                      <div className="relative flex-1">
+                        <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                          <Icon name="search" className="w-4 h-4" />
+                        </span>
+                        <input
+                          type="text"
+                          value={leadSearchTerm}
+                          onChange={(e) => setLeadSearchTerm(e.target.value)}
+                          placeholder="Search leads by name, email, phone, or service..."
+                          className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-ember-500 focus:outline-none transition"
+                        />
+                        {leadSearchTerm && (
+                          <button
+                            onClick={() => setLeadSearchTerm('')}
+                            className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-slate-600"
+                          >
+                            <Icon name="x" className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {/* Status Filter */}
+                        <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-medium text-slate-700">
+                          <Icon name="filter" className="w-3.5 h-3.5 text-slate-400" />
+                          <select
+                            value={leadStatusFilter}
+                            onChange={(e) => setLeadStatusFilter(e.target.value)}
+                            className="bg-transparent font-semibold text-slate-800 focus:outline-none cursor-pointer"
+                          >
+                            <option value="All">All Statuses ({leads.length})</option>
+                            <option value="New">New</option>
+                            <option value="Contacted">Contacted</option>
+                            <option value="Qualified">Qualified</option>
+                            <option value="Booked">Booked</option>
+                            <option value="Won">Won</option>
+                            <option value="Lost">Lost</option>
+                          </select>
+                        </div>
+
+                        {/* Sort Order */}
+                        <select
+                          value={leadSortBy}
+                          onChange={(e) => setLeadSortBy(e.target.value)}
+                          className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none cursor-pointer"
+                        >
+                          <option value="newest">Newest First</option>
+                          <option value="oldest">Oldest First</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Database Error Banner */}
+                    {leadsError && (
+                      <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-semibold flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Icon name="alert-circle" className="w-4 h-4 shrink-0 text-red-600" />
+                          <span>{leadsError}</span>
+                        </div>
+                        <button onClick={fetchLeads} className="underline text-red-800 hover:text-red-900 font-bold">
+                          Retry
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Leads Table or Empty State */}
+                    {leadsLoading ? (
+                      <div className="p-12 text-center bg-white rounded-2xl border border-slate-200 shadow-sm space-y-3">
+                        <Icon name="loader-2" className="w-8 h-8 animate-spin mx-auto text-ember-500" />
+                        <p className="text-sm font-medium text-slate-500">Loading leads from Supabase...</p>
+                      </div>
+                    ) : leads.length === 0 ? (
+                      /* Zero Leads in Database */
+                      <div className="p-12 text-center bg-white rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                        <span className="inline-flex h-16 w-16 items-center justify-center rounded-3xl bg-ember-50 text-ember-500 mx-auto">
+                          <Icon name="user-plus" className="h-8 w-8" />
+                        </span>
+                        <div>
+                          <h3 className="text-lg font-bold text-slate-900">No leads yet</h3>
+                          <p className="text-sm text-slate-500 max-w-sm mx-auto mt-1">Your leads will appear here when they are added manually or captured from website inquiries.</p>
+                        </div>
+                        <button
+                          onClick={() => setModal({ type: 'add_lead' })}
+                          className="bg-ember-500 hover:bg-ember-600 text-white font-semibold text-sm px-5 py-2.5 rounded-xl shadow transition inline-flex items-center gap-2"
+                        >
+                          <Icon name="plus" className="w-4 h-4" /> Add First Lead
+                        </button>
+                      </div>
+                    ) : filteredLeads.length === 0 ? (
+                      /* Filter Yielded 0 Results */
+                      <div className="p-12 text-center bg-white rounded-2xl border border-slate-200 shadow-sm space-y-3">
+                        <p className="text-base font-bold text-slate-800">No matching leads found</p>
+                        <p className="text-xs text-slate-500">Try adjusting your search query or status filter.</p>
+                        <button
+                          onClick={() => {
+                            setLeadSearchTerm('');
+                            setLeadStatusFilter('All');
+                          }}
+                          className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-3 py-1.5 rounded-lg transition"
+                        >
+                          Clear Filters
+                        </button>
+                      </div>
+                    ) : (
+                      /* Real Leads Table */
+                      <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left text-sm">
+                            <thead className="bg-slate-50 border-b border-slate-100 text-xs font-semibold uppercase text-slate-500">
+                              <tr>
+                                <th className="p-4">Customer Name</th>
+                                <th className="p-4">Contact</th>
+                                <th className="p-4">Service</th>
+                                <th className="p-4">Source</th>
+                                <th className="p-4">Status</th>
+                                <th className="p-4 text-right">Actions</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                              {filteredLeads.map((lead) => (
+                                <tr key={lead.id} className="hover:bg-slate-50/80 transition-colors">
+                                  <td className="p-4">
+                                    <div className="font-bold text-slate-900">{lead.name}</div>
+                                    {lead.notes && (
+                                      <div className="text-xs text-slate-400 truncate max-w-xs">{lead.notes}</div>
+                                    )}
+                                  </td>
+                                  <td className="p-4 text-xs space-y-0.5">
+                                    {lead.phone && <div className="font-mono text-slate-700">📞 {lead.phone}</div>}
+                                    {lead.email && <div className="text-slate-500">✉️ {lead.email}</div>}
+                                    {!lead.phone && !lead.email && <span className="text-slate-400">None</span>}
+                                  </td>
+                                  <td className="p-4">
+                                    <span className="font-medium text-slate-800 text-xs bg-slate-100 px-2 py-1 rounded-md">
+                                      {lead.service_requested || 'General'}
+                                    </span>
+                                  </td>
+                                  <td className="p-4 text-xs text-slate-500">
+                                    {lead.source || 'Direct'}
+                                  </td>
+                                  <td className="p-4">
+                                    <select
+                                      value={lead.status || 'New'}
+                                      onChange={(e) => handleUpdateLead(lead.id, { status: e.target.value })}
+                                      className={`text-xs font-bold px-2.5 py-1 rounded-full border cursor-pointer focus:outline-none ${
+                                        (lead.status || '').toLowerCase() === 'new' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                                        (lead.status || '').toLowerCase() === 'won' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                        (lead.status || '').toLowerCase() === 'contacted' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                                        (lead.status || '').toLowerCase() === 'qualified' ? 'bg-purple-50 text-purple-700 border-purple-200' :
+                                        (lead.status || '').toLowerCase() === 'booked' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
+                                        'bg-slate-100 text-slate-600 border-slate-200'
+                                      }`}
+                                    >
+                                      <option value="New">New</option>
+                                      <option value="Contacted">Contacted</option>
+                                      <option value="Qualified">Qualified</option>
+                                      <option value="Booked">Booked</option>
+                                      <option value="Won">Won</option>
+                                      <option value="Lost">Lost</option>
+                                    </select>
+                                  </td>
+                                  <td className="p-4 text-right">
+                                    <div className="flex items-center justify-end gap-1">
+                                      <button
+                                        onClick={() => {
+                                          setActiveLead(lead);
+                                          setModal({ type: 'view_lead' });
+                                        }}
+                                        title="View Details"
+                                        className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition"
+                                      >
+                                        <Icon name="eye" className="w-4 h-4" />
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          setActiveLead(lead);
+                                          setModal({ type: 'edit_lead' });
+                                        }}
+                                        title="Edit Lead"
+                                        className="p-1.5 text-slate-400 hover:text-ember-600 hover:bg-ember-50 rounded-lg transition"
+                                      >
+                                        <Icon name="edit" className="w-4 h-4" />
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          setActiveLead(lead);
+                                          setModal({ type: 'delete_lead' });
+                                        }}
+                                        title="Delete Lead"
+                                        className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                                      >
+                                        <Icon name="trash-2" className="w-4 h-4" />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* ----------------------------------------------------------- */}
+                {/* TAB: JOBS (CLEAN EMPTY STATE — FUTURE BACKEND) */}
+                {/* ----------------------------------------------------------- */}
+                {currentPortalTab === 'jobs' && (
+                  <div className="space-y-6 animate-fade-in-up">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <h1 className="text-2xl font-bold text-slate-900">Jobs</h1>
+                        <p className="text-slate-500 text-sm">Track work orders and technician dispatch.</p>
+                      </div>
+                      <button
+                        onClick={() => setModal({ type: 'add_job' })}
+                        className="bg-ember-500 hover:bg-ember-600 text-white font-semibold text-sm px-4 py-2 rounded-xl shadow transition flex items-center gap-1.5"
+                      >
+                        <Icon name="plus" className="w-4 h-4" /> New Job
+                      </button>
+                    </div>
+
+                    <div className="p-12 text-center bg-white rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                      <span className="inline-flex h-16 w-16 items-center justify-center rounded-3xl bg-slate-100 text-slate-500 mx-auto">
+                        <Icon name="hammer" className="h-8 w-8" />
+                      </span>
+                      <div>
+                        <h3 className="text-lg font-bold text-slate-900">No jobs created yet</h3>
+                        <p className="text-sm text-slate-500 max-w-sm mx-auto mt-1">Work orders and dispatch schedules will appear here as jobs are created.</p>
+                      </div>
+                      <button
+                        onClick={() => setModal({ type: 'add_job' })}
+                        className="bg-slate-900 hover:bg-slate-800 text-white font-semibold text-sm px-5 py-2.5 rounded-xl shadow transition inline-flex items-center gap-2"
+                      >
+                        <Icon name="plus" className="w-4 h-4" /> Create First Job
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* ----------------------------------------------------------- */}
+                {/* TAB: CUSTOMERS (CLEAN EMPTY STATE — FUTURE BACKEND) */}
+                {/* ----------------------------------------------------------- */}
+                {currentPortalTab === 'customers' && (
+                  <div className="space-y-6 animate-fade-in-up">
+                    <div>
+                      <h1 className="text-2xl font-bold text-slate-900">Customers</h1>
+                      <p className="text-slate-500 text-sm">Directory of clients and contact records.</p>
+                    </div>
+
+                    <div className="p-12 text-center bg-white rounded-2xl border border-slate-200 shadow-sm space-y-3">
+                      <span className="inline-flex h-16 w-16 items-center justify-center rounded-3xl bg-slate-100 text-slate-500 mx-auto">
+                        <Icon name="users" className="h-8 w-8" />
+                      </span>
+                      <h3 className="text-lg font-bold text-slate-900">No customers in directory yet</h3>
+                      <p className="text-sm text-slate-500 max-w-sm mx-auto">Customer contact profiles will automatically appear here as leads are converted or added.</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* ----------------------------------------------------------- */}
+                {/* TAB: REVIEWS (CLEAN EMPTY STATE — FUTURE BACKEND) */}
+                {/* ----------------------------------------------------------- */}
+                {currentPortalTab === 'reviews' && (
+                  <div className="space-y-6 animate-fade-in-up">
+                    <div>
+                      <h1 className="text-2xl font-bold text-slate-900">Reviews</h1>
+                      <p className="text-slate-500 text-sm">Customer feedback collected automatically.</p>
+                    </div>
+
+                    <div className="p-12 text-center bg-white rounded-2xl border border-slate-200 shadow-sm space-y-3">
+                      <span className="inline-flex h-16 w-16 items-center justify-center rounded-3xl bg-amber-50 text-amber-500 mx-auto">
+                        <Icon name="star" className="h-8 w-8" />
+                      </span>
+                      <h3 className="text-lg font-bold text-slate-900">No customer reviews yet</h3>
+                      <p className="text-sm text-slate-500 max-w-sm mx-auto">Customer reviews will appear here once automated review requests are completed.</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* ----------------------------------------------------------- */}
+                {/* TAB: AUTOMATIONS (REAL AUTOMATION 1: MISSED CALL → SMS) */}
+                {/* ----------------------------------------------------------- */}
+                {currentPortalTab === 'automations' && (
+                  <div className="space-y-6 animate-fade-in-up">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                      <div>
+                        <h1 className="text-2xl font-bold text-slate-900">Automations</h1>
+                        <p className="text-slate-500 text-sm">Customer communication triggers running on Twilio & n8n.</p>
+                      </div>
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-200">
+                        <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                        Twilio Voice Webhook Active
+                      </span>
+                    </div>
+
+                    <div className="grid md:grid-cols-3 gap-5">
+                      {INITIAL_PORTAL_DATA.automations.map((auto) => (
+                        <div key={auto.id} className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-3 hover:shadow-md transition">
+                          <div className="flex justify-between items-center">
+                            <span className="text-xs font-bold text-ember-600 uppercase">{auto.channel} Trigger</span>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                              auto.active ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'
+                            }`}>
+                              {auto.statusText || (auto.active ? 'ACTIVE' : 'PLANNED')}
+                            </span>
+                          </div>
+                          <h3 className="font-bold text-sm text-slate-900">{auto.name}</h3>
+                          <div className="bg-slate-50 p-3 rounded-xl text-xs text-slate-600 font-mono leading-relaxed">
+                            {auto.template}
+                          </div>
+                          {auto.active && (
+                            <div className="pt-2 text-xs text-slate-500 flex items-center justify-between border-t border-slate-100">
+                              <span>Forwarding: <strong className="text-slate-700 font-mono">+1 (416) 555-0100</strong></span>
+                              <span className="text-emerald-600 font-bold">SMS Ready</span>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* ----------------------------------------------------------- */}
+                {/* TAB: SETTINGS */}
+                {/* ----------------------------------------------------------- */}
+                {currentPortalTab === 'settings' && (
+                  <div className="space-y-6 max-w-2xl animate-fade-in-up">
+                    <div>
+                      <h1 className="text-2xl font-bold text-slate-900">Settings</h1>
+                      <p className="text-slate-500 text-sm">Organization profile and account details.</p>
+                    </div>
+                    <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Organization Name</label>
+                        <input defaultValue={clientOrgName} className="w-full px-3 py-2 border rounded-lg text-sm bg-slate-50 font-medium" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 uppercase mb-1">User Email (Supabase Auth)</label>
+                        <input defaultValue={user?.email || 'dexter125555@gmail.com'} disabled className="w-full px-3 py-2 border rounded-lg text-sm bg-slate-50 text-slate-500 cursor-not-allowed font-mono" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Assigned Role</label>
+                        <input defaultValue={userRole} disabled className="w-full px-3 py-2 border rounded-lg text-sm bg-slate-50 text-slate-500 cursor-not-allowed font-bold" />
+                      </div>
+                      <div>
+                        <button onClick={() => showToast('Settings updated!')} className="bg-slate-900 text-white font-semibold text-sm px-4 py-2 rounded-lg hover:bg-slate-800 transition">
+                          Save Settings
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </main>
+            </div>
+          </div>
+        );
+      }
+
+      // =======================================================================
+      // GLOBAL WRAPPER: RENDERS ACTIVE PAGE + TOASTS + MODALS
+      // =======================================================================
+      return (
+        <div>
+          {/* Toast Notification */}
+          {toast && (
+            <div className="fixed top-4 right-4 z-50 bg-slate-900 text-white px-5 py-3 rounded-xl shadow-2xl border border-ember-500/50 flex items-center space-x-3 animate-bounce">
+              <Icon name="bell" className="w-5 h-5 text-ember-400" />
+              <span className="text-sm font-medium">{toast}</span>
+            </div>
+          )}
+
+          {/* Render Active Page Content */}
+          {mainContent}
+
+          {/* ================================================================= */}
+          {/* GLOBAL MODALS (ACCESSIBLE ACROSS ALL PAGES) */}
+          {/* ================================================================= */}
+
+          {/* Add Job Modal */}
+          {modal.type === 'add_job' && (
+            <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4 animate-fade-in-up">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-lg font-bold text-slate-900">Create New Job</h3>
+                  <button onClick={() => setModal({ type: null })} className="text-slate-400 hover:text-slate-600">✕</button>
+                </div>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    showToast('Job creation will connect to Jobs table in Part 4.');
+                    setModal({ type: null });
+                  }}
+                  className="space-y-3 text-sm"
+                >
+                  <div>
+                    <label className="block text-xs font-semibold mb-1">Customer Name *</label>
+                    <input name="customer" required placeholder="John Smith" className="w-full px-3 py-2 border rounded-lg" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold mb-1">Service *</label>
+                    <input name="service" required placeholder="Drain Cleaning" className="w-full px-3 py-2 border rounded-lg" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs font-semibold mb-1">Date</label>
+                      <input name="date" type="date" defaultValue={new Date().toISOString().split('T')[0]} className="w-full px-3 py-2 border rounded-lg" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold mb-1">Price ($)</label>
+                      <input name="price" type="number" defaultValue="250" className="w-full px-3 py-2 border rounded-lg" />
+                    </div>
+                  </div>
+                  <button type="submit" className="w-full bg-ember-500 hover:bg-ember-600 text-white font-semibold py-2.5 rounded-lg transition shadow">
+                    Create Job
+                  </button>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* Add Real Supabase Lead Modal */}
+          {modal.type === 'add_lead' && (
+            <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="bg-white rounded-2xl p-6 max-w-lg w-full shadow-2xl space-y-4 animate-fade-in-up">
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-2">
+                    <span className="w-8 h-8 rounded-lg bg-ember-50 text-ember-600 flex items-center justify-center font-bold">
+                      <Icon name="user-plus" className="w-4 h-4" />
+                    </span>
+                    <h3 className="text-lg font-bold text-slate-900">Add New Lead</h3>
+                  </div>
+                  <button onClick={() => setModal({ type: null })} className="text-slate-400 hover:text-slate-600">✕</button>
+                </div>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const form = new FormData(e.target);
+                    handleCreateLead({
+                      first_name: form.get('first_name'),
+                      last_name: form.get('last_name'),
+                      email: form.get('email'),
+                      phone: form.get('phone'),
+                      service_requested: form.get('service_requested'),
+                      source: form.get('source'),
+                      status: form.get('status'),
+                      notes: form.get('notes'),
+                    });
+                  }}
+                  className="space-y-4 text-sm"
+                >
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">First Name *</label>
+                      <input name="first_name" required placeholder="John" className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-ember-500 focus:outline-none" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Last Name</label>
+                      <input name="last_name" placeholder="Smith" className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-ember-500 focus:outline-none" />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Phone Number</label>
+                      <input name="phone" placeholder="(416) 555-0100" className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-ember-500 focus:outline-none" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Email Address</label>
+                      <input name="email" type="email" placeholder="john@example.com" className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-ember-500 focus:outline-none" />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Requested Service</label>
+                      <input name="service_requested" placeholder="e.g. Drain Cleaning" className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-ember-500 focus:outline-none" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Source</label>
+                      <select name="source" defaultValue="Manual Entry" className="w-full px-3 py-2 border rounded-lg bg-white focus:ring-2 focus:ring-ember-500 focus:outline-none">
+                        <option value="Manual Entry">Manual Entry</option>
+                        <option value="Website Form">Website Form</option>
+                        <option value="Phone Call">Phone Call</option>
+                        <option value="Referral">Referral</option>
+                        <option value="Google Search">Google Search</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Initial Status</label>
+                    <select name="status" defaultValue="New" className="w-full px-3 py-2 border rounded-lg bg-white focus:ring-2 focus:ring-ember-500 focus:outline-none font-semibold">
+                      <option value="New">New</option>
+                      <option value="Contacted">Contacted</option>
+                      <option value="Qualified">Qualified</option>
+                      <option value="Booked">Booked</option>
+                      <option value="Won">Won</option>
+                      <option value="Lost">Lost</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Notes / Description</label>
+                    <textarea name="notes" rows="2" placeholder="Details about this inquiry..." className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-ember-500 focus:outline-none resize-none"></textarea>
+                  </div>
+
+                  <button type="submit" className="w-full bg-ember-500 hover:bg-ember-600 text-white font-semibold py-2.5 rounded-lg transition shadow">
+                    Save to Database
+                  </button>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* View Lead Details Modal */}
+          {modal.type === 'view_lead' && activeLead && (
+            <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="bg-white rounded-2xl p-6 max-w-lg w-full shadow-2xl space-y-4 animate-fade-in-up">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <span className="text-xs font-bold text-ember-600 uppercase tracking-wider">{activeLead.source || 'Lead Entry'}</span>
+                    <h3 className="text-xl font-bold text-slate-900">{activeLead.name}</h3>
+                  </div>
+                  <button onClick={() => setModal({ type: null })} className="text-slate-400 hover:text-slate-600">✕</button>
+                </div>
+
+                <div className="p-4 bg-slate-50 rounded-xl space-y-2 text-sm border border-slate-100">
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs font-bold text-slate-500 uppercase">Status</span>
+                    <select
+                      value={activeLead.status || 'New'}
+                      onChange={(e) => handleUpdateLead(activeLead.id, { status: e.target.value })}
+                      className="text-xs font-bold px-2.5 py-1 rounded-full border bg-white cursor-pointer"
+                    >
+                      <option value="New">New</option>
+                      <option value="Contacted">Contacted</option>
+                      <option value="Qualified">Qualified</option>
+                      <option value="Booked">Booked</option>
+                      <option value="Won">Won</option>
+                      <option value="Lost">Lost</option>
+                    </select>
+                  </div>
+
+                  <div className="flex justify-between">
+                    <span className="text-xs text-slate-500">Service:</span>
+                    <span className="font-semibold text-slate-800">{activeLead.service_requested || 'General'}</span>
+                  </div>
+
+                  {activeLead.phone && (
+                    <div className="flex justify-between">
+                      <span className="text-xs text-slate-500">Phone:</span>
+                      <a href={`tel:${activeLead.phone}`} className="font-mono text-ember-600 font-semibold">{activeLead.phone}</a>
+                    </div>
+                  )}
+
+                  {activeLead.email && (
+                    <div className="flex justify-between">
+                      <span className="text-xs text-slate-500">Email:</span>
+                      <a href={`mailto:${activeLead.email}`} className="text-ember-600 font-semibold">{activeLead.email}</a>
+                    </div>
+                  )}
+
+                  <div className="flex justify-between text-xs text-slate-400 pt-1 border-t border-slate-200">
+                    <span>Created: {activeLead.created_at ? new Date(activeLead.created_at).toLocaleString() : 'Recent'}</span>
+                  </div>
+                </div>
+
+                {activeLead.notes && (
+                  <div className="space-y-1">
+                    <span className="text-xs font-bold text-slate-700 uppercase">Notes</span>
+                    <p className="text-xs text-slate-600 bg-slate-50 p-3 rounded-lg border border-slate-100">{activeLead.notes}</p>
+                  </div>
+                )}
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    onClick={() => setModal({ type: 'edit_lead' })}
+                    className="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs py-2.5 rounded-lg transition"
+                  >
+                    Edit Lead
+                  </button>
+                  <button
+                    onClick={() => setModal({ type: 'delete_lead' })}
+                    className="px-3 border border-red-200 text-red-600 hover:bg-red-50 font-semibold text-xs py-2.5 rounded-lg transition"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Edit Lead Modal */}
+          {modal.type === 'edit_lead' && activeLead && (
+            <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="bg-white rounded-2xl p-6 max-w-lg w-full shadow-2xl space-y-4 animate-fade-in-up">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-lg font-bold text-slate-900">Edit Lead</h3>
+                  <button onClick={() => setModal({ type: null })} className="text-slate-400 hover:text-slate-600">✕</button>
+                </div>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const form = new FormData(e.target);
+                    const nameVal = form.get('name') || '';
+                    handleUpdateLead(activeLead.id, {
+                      name: nameVal,
+                      first_name: nameVal.split(' ')[0] || '',
+                      last_name: nameVal.split(' ').slice(1).join(' ') || '',
+                      email: form.get('email'),
+                      phone: form.get('phone'),
+                      service_requested: form.get('service_requested'),
+                      source: form.get('source'),
+                      status: form.get('status'),
+                      notes: form.get('notes'),
+                    });
+                  }}
+                  className="space-y-4 text-sm"
+                >
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Full Name *</label>
+                    <input name="name" required defaultValue={activeLead.name} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-ember-500 focus:outline-none" />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Phone Number</label>
+                      <input name="phone" defaultValue={activeLead.phone || ''} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-ember-500 focus:outline-none" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Email Address</label>
+                      <input name="email" type="email" defaultValue={activeLead.email || ''} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-ember-500 focus:outline-none" />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Requested Service</label>
+                      <input name="service_requested" defaultValue={activeLead.service_requested || ''} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-ember-500 focus:outline-none" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Status</label>
+                      <select name="status" defaultValue={activeLead.status || 'New'} className="w-full px-3 py-2 border rounded-lg bg-white focus:ring-2 focus:ring-ember-500 focus:outline-none font-semibold">
+                        <option value="New">New</option>
+                        <option value="Contacted">Contacted</option>
+                        <option value="Qualified">Qualified</option>
+                        <option value="Booked">Booked</option>
+                        <option value="Won">Won</option>
+                        <option value="Lost">Lost</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Source</label>
+                    <select name="source" defaultValue={activeLead.source || 'Manual Entry'} className="w-full px-3 py-2 border rounded-lg bg-white focus:ring-2 focus:ring-ember-500 focus:outline-none">
+                      <option value="Manual Entry">Manual Entry</option>
+                      <option value="Website Form">Website Form</option>
+                      <option value="Phone Call">Phone Call</option>
+                      <option value="Referral">Referral</option>
+                      <option value="Google Search">Google Search</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Notes</label>
+                    <textarea name="notes" rows="2" defaultValue={activeLead.notes || ''} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-ember-500 focus:outline-none resize-none"></textarea>
+                  </div>
+
+                  <button type="submit" className="w-full bg-ember-500 hover:bg-ember-600 text-white font-semibold py-2.5 rounded-lg transition shadow">
+                    Save Changes
+                  </button>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* Delete Lead Confirmation Modal */}
+          {modal.type === 'delete_lead' && activeLead && (
+            <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4 animate-fade-in-up text-center">
+                <div className="w-12 h-12 rounded-full bg-red-50 text-red-600 flex items-center justify-center mx-auto">
+                  <Icon name="trash-2" className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900">Delete Lead?</h3>
+                  <p className="text-xs text-slate-500 mt-1">Are you sure you want to delete <span className="font-bold text-slate-700">{activeLead.name}</span>? This action cannot be undone.</p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setModal({ type: null })}
+                    className="flex-1 border border-slate-300 text-slate-700 font-semibold text-xs py-2.5 rounded-lg hover:bg-slate-50 transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => handleDeleteLead(activeLead.id)}
+                    className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold text-xs py-2.5 rounded-lg transition"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* View Portfolio Project Modal */}
+          {modal.type === 'view_project' && modal.data && (
+            <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-4 animate-fade-in-up">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <span className="text-xs font-semibold text-ember-600 uppercase">{modal.data.type}</span>
+                    <h3 className="text-xl font-bold text-slate-900">{modal.data.name}</h3>
+                  </div>
+                  <button onClick={() => setModal({ type: null })} className="text-slate-400 hover:text-slate-600">✕</button>
+                </div>
+                <div className="h-48 overflow-hidden rounded-xl">
+                  <WorkCardArt kind={modal.data.art} />
+                </div>
+                <p className="text-sm text-slate-600">{modal.data.desc}</p>
+                <button
+                  onClick={() => {
+                    setModal({ type: null });
+                    window.location.hash = '#/contact';
+                  }}
+                  className="w-full bg-ember-500 text-white font-bold py-2.5 rounded-xl text-sm hover:bg-ember-600 transition shadow"
+                >
+                  Build a Similar System for My Business
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // Render the React Application
+    const rootElement = document.getElementById('root');
+    const root = ReactDOM.createRoot(rootElement);
+    root.render(<App />);
+  </script>
+</body>
+</html>
