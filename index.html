@@ -797,89 +797,64 @@
       );
     }
 
+    const WORK_PROJECT_IMAGES = {
+      plumbing: {
+        url: 'https://images.unsplash.com/photo-1581244277943-fe4a9c777189?w=800&auto=format&fit=crop&q=80',
+        alt: 'Professional plumbing installation and pipe repair',
+        caption: 'Instant Lead Capture & Quote Form',
+      },
+      hvac: {
+        url: 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=800&auto=format&fit=crop&q=80',
+        alt: 'HVAC technician installing modern heat pump system',
+        caption: 'Seasonal Booking & Automated Reviews',
+      },
+      landscape: {
+        url: 'https://images.unsplash.com/photo-1557429287-b2e26467fc2b?w=800&auto=format&fit=crop&q=80',
+        alt: 'Residential landscape design with manicured lawn and garden',
+        caption: 'Visual Gallery & Estimate Requests',
+      },
+      cleaning: {
+        url: 'https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=800&auto=format&fit=crop&q=80',
+        alt: 'Pristine sparkling clean home interior',
+        caption: 'Recurring Scheduling & Reminders',
+      },
+      contracting: {
+        url: 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=800&auto=format&fit=crop&q=80',
+        alt: 'Modern residential renovation and contracting craftsmanship',
+        caption: 'Project Bid Pipeline & Job Tracking',
+      },
+      auto: {
+        url: 'https://images.unsplash.com/photo-1601362840469-51e4d8d58785?w=800&auto=format&fit=crop&q=80',
+        alt: 'High-end ceramic coated vehicle auto detailing',
+        caption: 'Mobile Booking & 5-Star Prompts',
+      },
+    };
+
     function WorkCardArt({ kind, className = '' }) {
-      const arts = {
-        plumbing: (
-          <svg viewBox="0 0 640 400" className="h-full w-full" preserveAspectRatio="xMidYMid slice">
-            <defs>
-              <linearGradient id="plumbSky" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0%" stopColor="#0f172a" />
-                <stop offset="100%" stopColor="#1e3a5f" />
-              </linearGradient>
-            </defs>
-            <rect width="640" height="400" fill="url(#plumbSky)" />
-            <circle cx="520" cy="-20" r="160" fill="#f97316" opacity="0.18" />
-            <rect x="70" y="210" width="500" height="28" rx="14" fill="#fdba74" />
-            <rect x="90" y="120" width="28" height="180" rx="14" fill="#fb923c" />
-            <rect x="250" y="80" width="28" height="220" rx="14" fill="#f97316" />
-            <rect x="410" y="150" width="28" height="150" rx="14" fill="#fb923c" />
-            <circle cx="104" cy="120" r="22" fill="#fff7ed" />
-            <circle cx="264" cy="80" r="22" fill="#fff7ed" />
-            <circle cx="424" cy="150" r="22" fill="#fff7ed" />
-            <rect x="88" y="268" width="160" height="70" rx="12" fill="#ffffff" opacity="0.12" />
-            <text x="108" y="310" fill="#fff" fontFamily="Inter,sans-serif" fontSize="18" fontWeight="700">Quote in 60s</text>
-          </svg>
-        ),
-        hvac: (
-          <svg viewBox="0 0 640 400" className="h-full w-full" preserveAspectRatio="xMidYMid slice">
-            <rect width="640" height="400" fill="#1c1917" />
-            <rect x="90" y="110" width="280" height="200" rx="24" fill="#292524" stroke="#f97316" strokeWidth="4" />
-            <circle cx="230" cy="210" r="62" fill="#44403c" />
-            <circle cx="230" cy="210" r="28" fill="#f97316" />
-            <path d="M420 90c60 40 60 180 0 220" fill="none" stroke="#fdba74" strokeWidth="10" strokeLinecap="round" opacity="0.7" />
-            <path d="M470 70c80 50 80 210 0 260" fill="none" stroke="#fb923c" strokeWidth="8" strokeLinecap="round" opacity="0.45" />
-            <text x="120" y="330" fill="#fff" fontFamily="Inter,sans-serif" fontSize="18" fontWeight="700">Season-ready installs</text>
-          </svg>
-        ),
-        landscape: (
-          <svg viewBox="0 0 640 400" className="h-full w-full" preserveAspectRatio="xMidYMid slice">
-            <rect width="640" height="400" fill="#ecfdf5" />
-            <circle cx="520" cy="70" r="46" fill="#fbbf24" />
-            <path d="M0 280 C120 200 220 320 340 240 C460 160 540 260 640 210 L640 400 L0 400 Z" fill="#059669" />
-            <path d="M0 320 C140 270 250 360 390 300 C510 250 580 330 640 300 L640 400 L0 400 Z" fill="#10b981" />
-            <rect x="86" y="210" width="18" height="90" fill="#92400e" />
-            <circle cx="95" cy="200" r="42" fill="#166534" />
-            <rect x="190" y="230" width="16" height="80" fill="#92400e" />
-            <circle cx="198" cy="220" r="36" fill="#15803d" />
-            <rect x="430" y="200" width="20" height="110" fill="#92400e" />
-            <circle cx="440" cy="188" r="50" fill="#14532d" />
-            <text x="40" y="60" fill="#064e3b" fontFamily="Inter,sans-serif" fontSize="18" fontWeight="700">Yards that sell the next job</text>
-          </svg>
-        ),
-        cleaning: (
-          <svg viewBox="0 0 640 400" className="h-full w-full" preserveAspectRatio="xMidYMid slice">
-            <rect width="640" height="400" fill="#ecfeff" />
-            <rect x="80" y="80" width="480" height="240" rx="28" fill="#ffffff" />
-            <rect x="110" y="120" width="200" height="16" rx="8" fill="#a5f3fc" />
-            <rect x="110" y="156" width="140" height="16" rx="8" fill="#cffafe" />
-            <circle cx="430" cy="200" r="70" fill="#22d3ee" opacity="0.25" />
-            <path d="M400 230 l30 30 70-80" fill="none" stroke="#0891b2" strokeWidth="12" strokeLinecap="round" />
-            <text x="110" y="250" fill="#0e7490" fontFamily="Inter,sans-serif" fontSize="18" fontWeight="700">Spotless, on schedule</text>
-          </svg>
-        ),
-        contracting: (
-          <svg viewBox="0 0 640 400" className="h-full w-full" preserveAspectRatio="xMidYMid slice">
-            <rect width="640" height="400" fill="#f8fafc" />
-            <polygon points="320,70 560,200 80,200" fill="#0f172a" />
-            <rect x="140" y="200" width="360" height="150" fill="#1e293b" />
-            <rect x="280" y="240" width="80" height="110" fill="#f97316" />
-            <rect x="180" y="230" width="70" height="50" fill="#e2e8f0" />
-            <rect x="390" y="230" width="70" height="50" fill="#e2e8f0" />
-            <text x="40" y="50" fill="#0f172a" fontFamily="Inter,sans-serif" fontSize="18" fontWeight="700">From bid to final review</text>
-          </svg>
-        ),
-        auto: (
-          <svg viewBox="0 0 640 400" className="h-full w-full" preserveAspectRatio="xMidYMid slice">
-            <rect width="640" height="400" fill="#111827" />
-            <ellipse cx="320" cy="310" rx="210" ry="18" fill="#1f2937" />
-            <path d="M120 250 l70-70 h220 l90 70 h40 v40 h-50 a40 40 0 0 1-80 0 h-160 a40 40 0 0 1-80 0 h-50 z" fill="#f97316" />
-            <circle cx="210" cy="290" r="28" fill="#0f172a" stroke="#e2e8f0" strokeWidth="6" />
-            <circle cx="450" cy="290" r="28" fill="#0f172a" stroke="#e2e8f0" strokeWidth="6" />
-            <text x="40" y="70" fill="#fff" fontFamily="Inter,sans-serif" fontSize="18" fontWeight="700">Booked. Detailed. Reviewed.</text>
-          </svg>
-        ),
-      };
-      return <div className={`h-full w-full ${className}`}>{arts[kind] || arts.plumbing}</div>;
+      const item = WORK_PROJECT_IMAGES[kind] || WORK_PROJECT_IMAGES.plumbing;
+      return (
+        <div className={`relative h-full w-full overflow-hidden bg-slate-900 group ${className}`}>
+          <img
+            src={item.url}
+            alt={item.alt}
+            loading="lazy"
+            onError={(e) => {
+              e.currentTarget.onerror = null;
+              e.currentTarget.src = 'https://images.unsplash.com/photo-1590682680695-43b964a3ae17?w=800&auto=format&fit=crop&q=80';
+            }}
+            className="h-full w-full object-cover object-center transition-transform duration-700 ease-out group-hover:scale-105"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/20 to-transparent"></div>
+          <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between text-[11px] font-medium text-white/90">
+            <span className="truncate bg-black/50 backdrop-blur-md px-2.5 py-1 rounded-md border border-white/10 shadow-sm">
+              {item.caption}
+            </span>
+            <span className="inline-flex items-center text-ember-400 font-bold shrink-0 ml-2 text-[10px] uppercase tracking-wider bg-ember-950/60 px-2 py-0.5 rounded border border-ember-500/30">
+              Live System
+            </span>
+          </div>
+        </div>
+      );
     }
 
     // =========================================================================
@@ -1687,21 +1662,397 @@
       }
 
       // -----------------------------------------------------------------------
-      // VIEW: SERVICES
+      // VIEW: SERVICES (COMPREHENSIVE, VISUALLY STUNNING SERVICE SUITE)
       // -----------------------------------------------------------------------
       else if (route === '#/services') {
+        const coreServices = [
+          {
+            id: 'srv_missed_call',
+            badge: 'AUTOMATION 1 · LEAD CAPTURE',
+            badgeTone: 'bg-ember-50 text-ember-700 border-ember-200',
+            title: 'Missed Call → Instant Automatic SMS',
+            tagline: 'Never lose a customer to voicemail or competitors when you cannot answer the phone.',
+            description: 'When a homeowner calls your business and you are on a ladder, driving, or with a client, Brik automatically dispatches a branded text message within 3 seconds providing an immediate link to your service request form.',
+            icon: 'phone-call',
+            stat: '< 3s',
+            statLabel: 'Average SMS Dispatch Speed',
+            features: [
+              'Dedicated Twilio tracking phone number forwarding directly to your mobile',
+              'Sub-3-second automatic SMS dispatch on missed, busy, or unanswered calls',
+              'Smart answered-call filter — never sends an accidental text when you answer',
+              'Customizable message templates with client business name and online form link',
+              'Automatic customer directory creation and call log recording in your database',
+              'Two-way SMS reply logging directly inside your portal',
+            ],
+            preview: {
+              type: 'sms',
+              sender: 'Northside Plumbing & Heating',
+              bubble: "Hey! Sorry we missed your call. We're currently helping another customer, but we'll get back to you ASAP. In the meantime, fill out this quick form so we can get your details: https://briksystems.io/#/contact",
+            }
+          },
+          {
+            id: 'srv_websites',
+            badge: 'CORE PLATFORM · WEBSITES',
+            badgeTone: 'bg-blue-50 text-blue-700 border-blue-200',
+            title: 'High-Converting Custom Websites',
+            tagline: 'Turn local Google searchers into booked quote requests with speed and credibility.',
+            description: 'Modern, mobile-first websites designed exclusively for trade and service contractors. Engineered for lightning speed, authentic trust, clear service descriptions, and effortless 60-second quote submissions.',
+            icon: 'globe',
+            stat: '100%',
+            statLabel: 'Mobile & Speed Optimized',
+            features: [
+              'Mobile-responsive layouts engineered for emergency & same-day booking calls',
+              'Interactive service request forms wired directly into your lead pipeline',
+              'Google Maps, business hours, service areas, and local SEO foundations',
+              'Project showcases and real photo galleries that prove your craftsmanship',
+              'Ultra-fast global CDN hosting with automatic SSL security certificates',
+              'Direct integration with Twilio, n8n webhooks, and Supabase database',
+            ],
+            preview: {
+              type: 'checklist',
+              items: ['Emergency Quote Forms', 'Before / After Showcases', 'Local Area SEO Schema', 'Instant Mobile Click-to-Call']
+            }
+          },
+          {
+            id: 'srv_reviews',
+            badge: 'AUTOMATION 2 · REPUTATION',
+            badgeTone: 'bg-amber-50 text-amber-700 border-amber-200',
+            title: 'Job Completed → Automatic Google Reviews',
+            tagline: 'Collect authentic 5-star Google reviews on autopilot after every completed job.',
+            description: 'The moment your technician marks a job as completed, Brik automatically triggers a polite SMS asking for feedback and linking directly to your Google Maps review page while customer satisfaction is highest.',
+            icon: 'star',
+            stat: '+300%',
+            statLabel: 'Increase in Monthly Reviews',
+            features: [
+              'Automatic SMS trigger immediately upon job completion status update',
+              'Direct 1-tap link taking customers straight to your Google review dialog',
+              'Eliminates the friction of remembering to ask or manual follow-up texting',
+              'Internal feedback protection to resolve issues before public reviews',
+              'Live review tracking and star rating counter on your dashboard',
+              'Customizable delay timers (instant, 30 minutes, or 2 hours post-job)',
+            ],
+            preview: {
+              type: 'sms',
+              sender: 'Customer Review Prompt',
+              bubble: "Hi John, thank you for choosing Northside Plumbing today! How did our technician do? If you had a great experience, could you leave us a quick 5-star Google review? https://g.page/r/review",
+            }
+          },
+          {
+            id: 'srv_retention',
+            badge: 'AUTOMATION 3 · RETENTION',
+            badgeTone: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+            title: 'Delayed Follow-Up & Seasonal Re-engagement',
+            tagline: 'Bring past customers back for repeat jobs and maintenance without lifting a finger.',
+            description: 'Automatically follow up 20 to 30 days after a completed job to ensure complete satisfaction, offering seasonal maintenance check-ups, filter replacements, or returning customer discounts.',
+            icon: 'repeat',
+            stat: '20-30d',
+            statLabel: 'Smart Re-engagement Timing',
+            features: [
+              'Automated scheduling delay engine timed perfectly after service completion',
+              'Seasonal maintenance prompts (fall furnace prep, spring AC checks, drain cleaning)',
+              'Reactivates cold customers into high-margin recurring maintenance contracts',
+              'Multi-channel outreach via friendly SMS and email check-ins',
+              'Track repeat customer booking rates directly inside your analytics',
+              'Customizable discount codes and seasonal promotion templates',
+            ],
+            preview: {
+              type: 'sms',
+              sender: 'Seasonal Follow-Up',
+              bubble: "Hi Sarah! Checking in from Northside Plumbing — how is your new water heater running? As the season changes, we're offering 10% off plumbing checkups for past clients this month. Reply YES to schedule!",
+            }
+          },
+          {
+            id: 'srv_crm',
+            badge: 'OPERATIONS · CRM PORTAL',
+            badgeTone: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+            title: 'Centralized Leads, Jobs & Customer Portal',
+            tagline: 'Stop losing jobs in scattered text threads. One unified dashboard for your business.',
+            description: 'A dedicated, multi-tenant portal for business owners and staff to manage leads from first contact through job completion and final review without spreadsheet clutter.',
+            icon: 'layout-dashboard',
+            stat: '0',
+            statLabel: 'Lost Leads or Paperwork',
+            features: [
+              'Real-time Lead pipeline tracking (New, Contacted, Qualified, Booked, Won, Lost)',
+              '1-click lead status updates with live search and multi-criteria filtering',
+              'Customer directory with complete call history, quote requests, and SMS logs',
+              'Multi-tenant cloud architecture powered by PostgreSQL and Supabase',
+              'Role-based security ensuring your client data is 100% private and isolated',
+              'Export customer lists and lead history at any time with zero lock-in',
+            ],
+            preview: {
+              type: 'checklist',
+              items: ['Real-Time Inbound Feed', 'One-Click Lead Conversion', 'Full Call & SMS Audit Trail', 'Multi-User Team Access']
+            }
+          },
+          {
+            id: 'srv_notifications',
+            badge: 'AUTOMATION · SPEED TO LEAD',
+            badgeTone: 'bg-violet-50 text-violet-700 border-violet-200',
+            title: 'Speed-to-Lead Alerts & AI Automations',
+            tagline: 'Instant alerts sent to your phone the second a new lead requests an estimate.',
+            description: 'Responding within 5 minutes makes you 21x more likely to win the job. Brik instantly routes form submissions and phone inquiries to your phone with full lead details.',
+            icon: 'zap',
+            stat: '< 60s',
+            statLabel: 'Lead-to-Notification Delivery',
+            features: [
+              'Instant SMS and email notifications delivered directly to business owners & techs',
+              'n8n workflow orchestration engine connecting forms, webhooks, and phone systems',
+              'AI-assisted lead categorization identifying job type, location, and urgency',
+              'Automated inquiry confirmation emails sent to homeowners immediately',
+              'Webhook event logs and deliverability tracking in your database',
+              'Custom workflow builder for advanced technician dispatching rules',
+            ],
+            preview: {
+              type: 'checklist',
+              items: ['Instant SMS Owner Alerts', 'Instant Customer Confirmation', 'n8n Webhook Architecture', 'AI Urgency Detection']
+            }
+          },
+        ];
+
+        const comparisonPoints = [
+          { feature: 'Missed Call Response', oldWay: 'Goes to voicemail; customer calls competitor', brikWay: 'Instant SMS sent within 3 seconds with quote form link' },
+          { feature: 'Google Reviews', oldWay: 'Manual texting or forgotten 80% of the time', brikWay: 'Automated 1-tap SMS review prompt sent upon job completion' },
+          { feature: 'Customer Re-engagement', oldWay: 'Never follow up after job is done', brikWay: 'Automated 20-30 day seasonal check-in for repeat revenue' },
+          { feature: 'Lead Management', oldWay: 'Lost across notebooks, text threads, and emails', brikWay: 'Centralized real-time cloud CRM with search & status filters' },
+          { feature: 'Website & Forms', oldWay: 'Slow, outdated site with generic contact form', brikWay: 'Mobile-first, high-converting trade website with instant lead routing' },
+          { feature: 'Speed to Lead', oldWay: 'Hours or days to respond to inquiries', brikWay: 'Instant SMS/Email alerts delivered to your phone in seconds' },
+        ];
+
+        const faqs = [
+          {
+            q: 'How does the Missed Call SMS work if I am driving or on a job?',
+            a: 'When someone calls your business number and you do not pick up (or decline the call), our system detects the unanswered status and immediately sends the caller a friendly text message with your business name and a link to your online service request form. Answered calls never trigger an SMS.'
+          },
+          {
+            q: 'Do I get to keep my existing business phone number?',
+            a: 'Yes! You can either use a dedicated Brik number on marketing materials or simply set up unconditional/conditional call forwarding from your existing number so missed calls are automatically captured.'
+          },
+          {
+            q: 'How does the Google Review automation increase my ratings?',
+            a: 'Timing is everything. By asking right when a job is marked completed, customer gratitude is at its highest. The text includes a direct 1-tap link that opens the Google Maps review box on their phone without making them search for your business.'
+          },
+          {
+            q: 'Can I customize the text message templates for my business?',
+            a: 'Yes! Every client can customize their business name, missed-call SMS message, review request wording, and service form URLs directly in the portal settings.'
+          },
+          {
+            q: 'How long does setup take to go live?',
+            a: 'Typical onboarding takes 3 to 7 days from strategy kickoff to live website and automated phone system deployment.'
+          }
+        ];
+
         mainContent = (
           <div className="flex min-h-screen flex-col bg-white">
             <MarketingHeader />
             <main className="flex-1 pt-16">
-              <section className="relative overflow-hidden px-5 py-20 sm:px-8 sm:py-24">
+              {/* Header Hero */}
+              <section className="relative overflow-hidden px-5 py-20 sm:px-8 sm:py-24 bg-gradient-to-b from-slate-50/80 to-white">
                 <div className="brik-grid-bg pointer-events-none absolute inset-0 opacity-50 [mask-image:radial-gradient(ellipse_at_top,black,transparent_70%)]"></div>
-                <div className="relative mx-auto max-w-3xl text-center">
-                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-ember-600">Services</span>
-                  <h1 className="mt-4 text-4xl font-bold text-slate-900 sm:text-5xl text-balance">Websites and Systems That Do the Work For You</h1>
-                  <p className="mt-5 text-lg leading-relaxed text-slate-600">Pick the piece you need today. Everything is built to connect into one simple system as your business grows.</p>
+                <div className="relative mx-auto max-w-4xl text-center">
+                  <span className="inline-flex items-center gap-2 rounded-full border border-ember-200 bg-ember-50/80 px-3.5 py-1 text-xs font-bold uppercase tracking-[0.18em] text-ember-700 shadow-sm">
+                    <span className="h-1.5 w-1.5 rounded-full bg-ember-500 animate-pulse"></span>
+                    Complete Service Suite · The Brik Platform
+                  </span>
+                  <h1 className="mt-6 text-4xl font-bold text-slate-900 sm:text-5xl lg:text-6xl text-balance tracking-tight">
+                    Websites & Automated Systems Built for Local Service Businesses
+                  </h1>
+                  <p className="mt-6 text-lg sm:text-xl leading-relaxed text-slate-600 max-w-2xl mx-auto">
+                    From custom high-converting trade websites to 24/7 missed-call text capture and 5-star Google review engines — engineered to turn inquiries into revenue on autopilot.
+                  </p>
+                  <div className="mt-8 flex flex-wrap justify-center gap-3">
+                    <a className="inline-flex items-center justify-center text-sm font-semibold h-11 rounded-xl px-8 bg-ember-500 text-white hover:bg-ember-600 shadow-md hover:shadow-ember-500/20 transition transform active:scale-98" href="#/contact">
+                      Book a Discovery Call
+                      <Icon name="arrow-right" className="ml-2 h-4 w-4" />
+                    </a>
+                    <a className="inline-flex items-center justify-center text-sm font-semibold border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 h-11 rounded-xl px-8 transition" href="#/work">
+                      View Live Client Systems
+                    </a>
+                  </div>
                 </div>
               </section>
+
+              {/* Core Services Grid */}
+              <section className="px-5 py-16 sm:px-8 sm:py-24 max-w-7xl mx-auto">
+                <div className="text-center max-w-2xl mx-auto mb-16">
+                  <span className="text-xs font-bold uppercase tracking-[0.18em] text-ember-600">Core Capabilities</span>
+                  <h2 className="mt-2 text-3xl font-bold text-slate-900 sm:text-4xl">Everything Included in Your System</h2>
+                  <p className="mt-3 text-base text-slate-600">Each module is built to operate independently or seamlessly together as one unified engine.</p>
+                </div>
+
+                <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
+                  {coreServices.map((srv) => (
+                    <div
+                      key={srv.id}
+                      className="group flex flex-col rounded-3xl border border-slate-200 bg-white p-7 shadow-sm transition-all duration-300 hover:-translate-y-1.5 hover:border-slate-300 hover:shadow-xl relative overflow-hidden"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900 text-white transition-colors group-hover:bg-ember-500 shadow-sm">
+                          <Icon name={srv.icon} className="h-6 w-6" />
+                        </span>
+                        <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${srv.badgeTone}`}>
+                          {srv.badge}
+                        </span>
+                      </div>
+
+                      <h3 className="mt-5 text-xl font-bold text-slate-900 group-hover:text-ember-600 transition-colors">
+                        {srv.title}
+                      </h3>
+                      <p className="mt-1 text-xs font-semibold text-slate-500 italic">
+                        "{srv.tagline}"
+                      </p>
+                      <p className="mt-3 text-sm leading-relaxed text-slate-600 flex-1">
+                        {srv.description}
+                      </p>
+
+                      {/* Key Stat Badge */}
+                      <div className="mt-5 p-3 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-between">
+                        <span className="text-xs text-slate-500 font-medium">{srv.statLabel}</span>
+                        <span className="text-sm font-bold font-mono text-slate-900 bg-white px-2.5 py-0.5 rounded-lg border border-slate-200 shadow-2xs">
+                          {srv.stat}
+                        </span>
+                      </div>
+
+                      {/* Live Visual Widget / Preview */}
+                      {srv.preview.type === 'sms' ? (
+                        <div className="mt-4 p-3.5 rounded-2xl bg-slate-900 text-white space-y-2 text-xs">
+                          <div className="flex items-center justify-between text-[10px] text-slate-400 font-medium">
+                            <span className="flex items-center gap-1.5">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                              {srv.preview.sender}
+                            </span>
+                            <span>Automatic SMS</span>
+                          </div>
+                          <p className="bg-slate-800/90 p-2.5 rounded-xl text-slate-200 text-[11px] leading-relaxed border border-slate-700 font-sans">
+                            {srv.preview.bubble}
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="mt-4 grid grid-cols-2 gap-2 text-[11px] text-slate-600">
+                          {srv.preview.items.map((it) => (
+                            <div key={it} className="p-2 rounded-xl bg-slate-50 border border-slate-100 font-medium truncate flex items-center gap-1">
+                              <Icon name="check" className="w-3 h-3 text-emerald-500 shrink-0" />
+                              <span className="truncate">{it}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Features Checklist */}
+                      <div className="mt-6 pt-5 border-t border-slate-100 space-y-2.5">
+                        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">What's Included</p>
+                        <ul className="space-y-2">
+                          {srv.features.map((feat, idx) => (
+                            <li key={idx} className="flex items-start gap-2 text-xs text-slate-600 leading-snug">
+                              <Icon name="circle-check" className="h-3.5 w-3.5 shrink-0 text-emerald-500 mt-0.5" />
+                              <span>{feat}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      <div className="mt-6 pt-4">
+                        <a
+                          href="#/contact"
+                          className="w-full inline-flex items-center justify-center rounded-xl bg-slate-100 hover:bg-ember-500 hover:text-white text-slate-800 text-xs font-bold py-2.5 transition-all shadow-2xs group-hover:bg-slate-900 group-hover:text-white"
+                        >
+                          Configure This System <Icon name="arrow-right" className="w-3.5 h-3.5 ml-1.5" />
+                        </a>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              {/* Comparison Section */}
+              <section className="bg-slate-50 px-5 py-16 sm:px-8 sm:py-24 border-y border-slate-200">
+                <div className="max-w-5xl mx-auto">
+                  <div className="text-center max-w-2xl mx-auto mb-12">
+                    <span className="text-xs font-bold uppercase tracking-[0.18em] text-ember-600">Why It Works</span>
+                    <h2 className="mt-2 text-3xl font-bold text-slate-900 sm:text-4xl">The Manual Way vs. The Brik System</h2>
+                    <p className="mt-3 text-base text-slate-600">See the difference an automated communication infrastructure makes for your bottom line.</p>
+                  </div>
+
+                  <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-sm">
+                        <thead className="bg-slate-900 text-white text-xs uppercase tracking-wider">
+                          <tr>
+                            <th className="p-4 sm:p-5 font-bold w-1/4">Feature / Process</th>
+                            <th className="p-4 sm:p-5 font-semibold text-slate-400 w-3/8">The Old Way</th>
+                            <th className="p-4 sm:p-5 font-bold text-ember-400 w-3/8 bg-slate-800/80">The Brik System</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 text-xs sm:text-sm">
+                          {comparisonPoints.map((row, idx) => (
+                            <tr key={idx} className="hover:bg-slate-50/60 transition-colors">
+                              <td className="p-4 sm:p-5 font-bold text-slate-900">{row.feature}</td>
+                              <td className="p-4 sm:p-5 text-slate-500 flex items-start gap-2">
+                                <span className="text-red-500 font-bold">✕</span> {row.oldWay}
+                              </td>
+                              <td className="p-4 sm:p-5 font-medium text-slate-900 bg-ember-50/30">
+                                <div className="flex items-start gap-2 text-slate-900">
+                                  <span className="text-emerald-600 font-bold">✓</span> {row.brikWay}
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              {/* 4-Step Launch Process */}
+              <section className="px-5 py-16 sm:px-8 sm:py-24 max-w-6xl mx-auto">
+                <div className="text-center max-w-2xl mx-auto mb-14">
+                  <span className="text-xs font-bold uppercase tracking-[0.18em] text-ember-600">Simple Onboarding</span>
+                  <h2 className="mt-2 text-3xl font-bold text-slate-900 sm:text-4xl">How We Launch Your System</h2>
+                  <p className="mt-3 text-base text-slate-600">From kickoff to generating leads in under 7 business days.</p>
+                </div>
+
+                <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+                  {[
+                    { step: '01', title: 'Discovery & Plan', time: 'Day 1-2', desc: 'We review your services, pricing, target service area, and phone forwarding setup.' },
+                    { step: '02', title: 'Website & Phone Setup', time: 'Day 3-4', desc: 'We design your custom mobile website, configure your business call forwarding, and set up quote forms.' },
+                    { step: '03', title: 'Automations & Portal', time: 'Day 5-6', desc: 'We wire up missed-call SMS triggers, Google review prompts, and provision your private database portal.' },
+                    { step: '04', title: 'Live Launch', time: 'Day 7', desc: 'We conduct live test calls, verify instant SMS delivery, and hand over your credentials.' },
+                  ].map((s) => (
+                    <div key={s.step} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm relative group hover:border-slate-300 hover:shadow-md transition">
+                      <div className="flex items-center justify-between">
+                        <span className="text-3xl font-black text-slate-200 group-hover:text-ember-500 transition-colors font-mono">{s.step}</span>
+                        <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">{s.time}</span>
+                      </div>
+                      <h3 className="mt-4 font-bold text-base text-slate-900">{s.title}</h3>
+                      <p className="mt-2 text-xs text-slate-600 leading-relaxed">{s.desc}</p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              {/* FAQs */}
+              <section className="bg-slate-50 px-5 py-16 sm:px-8 sm:py-24 border-t border-slate-200">
+                <div className="max-w-4xl mx-auto">
+                  <div className="text-center max-w-2xl mx-auto mb-12">
+                    <span className="text-xs font-bold uppercase tracking-[0.18em] text-ember-600">Common Questions</span>
+                    <h2 className="mt-2 text-3xl font-bold text-slate-900 sm:text-4xl">Frequently Asked Questions</h2>
+                  </div>
+
+                  <div className="space-y-4">
+                    {faqs.map((faq, idx) => (
+                      <div key={idx} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-2">
+                        <h3 className="font-bold text-base text-slate-900 flex items-start gap-2.5">
+                          <span className="text-ember-500 font-bold">Q:</span> {faq.q}
+                        </h3>
+                        <p className="text-sm text-slate-600 leading-relaxed pl-6">
+                          {faq.a}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </section>
+
               <CtaBanner />
             </main>
             <MarketingFooter />
@@ -1714,12 +2065,49 @@
       // -----------------------------------------------------------------------
       else if (route === '#/work') {
         const portfolio = [
-          { name: 'Northside Plumbing', type: 'Plumbing Company', desc: 'A fast, mobile-first site with quote requests wired straight into a lead pipeline.', art: 'plumbing', tags: ['Website', 'Lead System', 'Review System'] },
-          { name: 'Peak HVAC', type: 'HVAC Company', desc: 'Seasonal service booking with automated review requests after every install.', art: 'hvac', tags: ['Website', 'Review System', 'Follow-Up'] },
-          { name: 'Evergreen Landscaping', type: 'Landscaping Company', desc: 'A visual portfolio site that turns project photos into new estimate requests.', art: 'landscape', tags: ['Website', 'Lead System'] },
-          { name: 'Bright & Clean Co.', type: 'Cleaning Company', desc: 'Recurring-service scheduling with follow-up reminders that keep clients coming back.', art: 'cleaning', tags: ['Website', 'Follow-Up', 'Review System'] },
-          { name: 'Summit Contracting', type: 'Contractor', desc: 'Project-based lead capture with job tracking from first call to final review.', art: 'contracting', tags: ['Website', 'Lead System', 'AI Automation'] },
-          { name: 'Apex Auto Detailing', type: 'Auto Detailing', desc: 'Appointment requests and post-service review prompts in one clean system.', art: 'auto', tags: ['Website', 'Review System'] },
+          {
+            name: 'Northside Plumbing',
+            type: 'Plumbing & Heating Company',
+            desc: 'A fast, mobile-first website with interactive quote requests, 24/7 missed-call SMS capture, and automated Google reviews.',
+            liveUrl: 'https://clearflowdemositedemovercel.wpcomstaging.com/',
+            art: 'plumbing',
+            tags: ['Website', 'Lead System', 'Review System'],
+          },
+          {
+            name: 'Peak HVAC',
+            type: 'HVAC Company',
+            desc: 'Seasonal service booking with automated review requests after every install.',
+            art: 'hvac',
+            tags: ['Website', 'Review System', 'Follow-Up'],
+          },
+          {
+            name: 'Evergreen Landscaping',
+            type: 'Landscaping Company',
+            desc: 'A visual portfolio site that turns project photos into new estimate requests.',
+            art: 'landscape',
+            tags: ['Website', 'Lead System'],
+          },
+          {
+            name: 'Bright & Clean Co.',
+            type: 'Cleaning Company',
+            desc: 'Recurring-service scheduling with follow-up reminders that keep clients coming back.',
+            art: 'cleaning',
+            tags: ['Website', 'Follow-Up', 'Review System'],
+          },
+          {
+            name: 'Summit Contracting',
+            type: 'Contractor',
+            desc: 'Project-based lead capture with job tracking from first call to final review.',
+            art: 'contracting',
+            tags: ['Website', 'Lead System', 'AI Automation'],
+          },
+          {
+            name: 'Apex Auto Detailing',
+            type: 'Auto Detailing',
+            desc: 'Appointment requests and post-service review prompts in one clean system.',
+            art: 'auto',
+            tags: ['Website', 'Review System'],
+          },
         ];
 
         mainContent = (
@@ -1738,7 +2126,17 @@
               <section className="px-5 pb-8 sm:px-8">
                 <div className="mx-auto grid max-w-6xl gap-6 sm:grid-cols-2 lg:grid-cols-3">
                   {portfolio.map((item) => (
-                    <article key={item.name} className="group flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl">
+                    <article
+                      key={item.name}
+                      onClick={() => {
+                        if (item.liveUrl) {
+                          window.open(item.liveUrl, '_blank', 'noopener,noreferrer');
+                        } else {
+                          setModal({ type: 'view_project', data: item });
+                        }
+                      }}
+                      className="group flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl cursor-pointer"
+                    >
                       <div className="relative aspect-[16/10] overflow-hidden">
                         <div className="h-full w-full transition-transform duration-500 group-hover:scale-105">
                           <WorkCardArt kind={item.art} />
@@ -1746,16 +2144,34 @@
                         <span className="absolute left-3 top-3 z-20 rounded-full bg-white/90 px-2.5 py-1 text-xs font-medium text-slate-700 backdrop-blur">
                           {item.type}
                         </span>
+                        {item.liveUrl && (
+                          <span className="absolute right-3 top-3 z-20 inline-flex items-center gap-1 rounded-full bg-slate-900/90 group-hover:bg-ember-500 text-white px-2.5 py-1 text-[11px] font-bold backdrop-blur shadow-sm transition-colors">
+                            Live Demo ↗
+                          </span>
+                        )}
                       </div>
                       <div className="flex flex-1 flex-col p-6">
-                        <h2 className="text-lg font-semibold text-slate-900">{item.name}</h2>
+                        <div className="flex items-center justify-between">
+                          <h2 className="text-lg font-bold text-slate-900 group-hover:text-ember-600 transition-colors">{item.name}</h2>
+                          {item.liveUrl && (
+                            <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                              Live Site
+                            </span>
+                          )}
+                        </div>
                         <p className="mt-2 flex-1 text-sm leading-relaxed text-slate-600">{item.desc}</p>
-                        <button
-                          onClick={() => setModal({ type: 'view_project', data: item })}
-                          className="mt-5 inline-flex items-center text-sm font-medium text-ember-600 transition-transform group-hover:translate-x-1"
-                        >
-                          View Project <Icon name="arrow-right" className="ml-1 h-4 w-4" />
-                        </button>
+                        <div className="mt-5 flex items-center justify-between gap-3 pt-3 border-t border-slate-100">
+                          {item.liveUrl ? (
+                            <span className="inline-flex items-center text-sm font-bold text-slate-900 group-hover:text-ember-600 transition">
+                              View Live Website <span className="ml-1 text-xs">↗</span>
+                            </span>
+                          ) : (
+                            <span className="text-xs text-slate-400 font-medium">Custom Build</span>
+                          )}
+                          <span className="inline-flex items-center text-sm font-semibold text-ember-600 transition-transform group-hover:translate-x-1">
+                            {item.liveUrl ? 'Launch Site ↗' : 'Details →'}
+                          </span>
+                        </div>
                       </div>
                     </article>
                   ))}
@@ -2945,15 +3361,28 @@
                   <WorkCardArt kind={modal.data.art} />
                 </div>
                 <p className="text-sm text-slate-600">{modal.data.desc}</p>
-                <button
-                  onClick={() => {
-                    setModal({ type: null });
-                    window.location.hash = '#/contact';
-                  }}
-                  className="w-full bg-ember-500 text-white font-bold py-2.5 rounded-xl text-sm hover:bg-ember-600 transition shadow"
-                >
-                  Build a Similar System for My Business
-                </button>
+                
+                <div className="space-y-2 pt-2">
+                  {modal.data.liveUrl && (
+                    <a
+                      href={modal.data.liveUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full inline-flex items-center justify-center bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 rounded-xl text-sm transition shadow"
+                    >
+                      Open Live Website (Demo) <Icon name="arrow-right" className="ml-1.5 h-4 w-4" />
+                    </a>
+                  )}
+                  <button
+                    onClick={() => {
+                      setModal({ type: null });
+                      window.location.hash = '#/contact';
+                    }}
+                    className="w-full bg-ember-500 text-white font-bold py-2.5 rounded-xl text-sm hover:bg-ember-600 transition shadow"
+                  >
+                    Build a Similar System for My Business
+                  </button>
+                </div>
               </div>
             </div>
           )}
