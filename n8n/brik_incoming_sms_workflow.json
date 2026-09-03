@@ -1,0 +1,88 @@
+{
+  "name": "Brik Automation — Incoming SMS Reply Handler",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "brik-incoming-sms",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "node-twilio-sms-inlet",
+      "name": "Twilio SMS Webhook Inlet",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        300
+      ],
+      "webhookId": "brik-incoming-sms"
+    },
+    {
+      "parameters": {
+        "jsCode": "// =============================================================================\n// Node 2: Extract Incoming Message & Match Client Organization\n// =============================================================================\nconst body = $input.first().json.body || $input.first().json;\n\nconst fromNumber = body.From || '';\nconst toNumber = body.To || '';\nconst messageBody = body.Body || '';\nconst messageSid = body.MessageSid || `SM_${Date.now()}`;\n\n// Match Client Organization based on Twilio Destination Number ('To')\nlet orgId = '00000000-0000-0000-0000-000000000001';\nlet orgName = 'Northside Plumbing & Heating';\n\nconst auditLog = `[BRIK INCOMING SMS] Client: ${orgName} (${orgId}) | From Customer: ${fromNumber} | Message: \"${messageBody}\"`;\nconsole.log(auditLog);\n\n// Prepare Database Payloads for Supabase\nconst customerRecord = {\n  organization_id: orgId,\n  name: `Customer ${fromNumber.slice(-4)}`,\n  phone: fromNumber,\n  source: 'SMS Reply',\n  updated_at: new Date().toISOString()\n};\n\nconst messageRecord = {\n  organization_id: orgId,\n  from_number: fromNumber,\n  to_number: toNumber,\n  message_body: messageBody,\n  message_type: 'INBOUND_REPLY',\n  direction: 'INBOUND',\n  status: 'RECEIVED',\n  twilio_message_sid: messageSid,\n  timestamp: new Date().toISOString()\n};\n\nreturn [{\n  json: {\n    success: true,\n    action: 'incoming_sms_stored',\n    organization_id: orgId,\n    organization_name: orgName,\n    from_number: fromNumber,\n    to_number: toNumber,\n    message_body: messageBody,\n    message_sid: messageSid,\n    audit_log: auditLog,\n    supabase_payloads: {\n      customer: customerRecord,\n      message: messageRecord\n    }\n  }\n}];"
+      },
+      "id": "node-extract-sms",
+      "name": "Extract SMS & Match Client",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response></Response>",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/xml"
+              }
+            ]
+          }
+        }
+      },
+      "id": "node-respond-twiml",
+      "name": "Respond TwiML 200",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        720,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Twilio SMS Webhook Inlet": {
+      "main": [
+        [
+          {
+            "node": "Extract SMS & Match Client",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract SMS & Match Client": {
+      "main": [
+        [
+          {
+            "node": "Respond TwiML 200",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

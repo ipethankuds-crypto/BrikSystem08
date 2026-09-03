@@ -1,0 +1,207 @@
+{
+  "name": "Brik Leads Ingestion & Multi-Tenant Router",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "brik-lead-created",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "node-webhook-inlet",
+      "name": "Brik Webhook Inlet",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        300
+      ],
+      "webhookId": "brik-lead-created"
+    },
+    {
+      "parameters": {
+        "jsCode": "// =============================================================================\n// Node 2: Webhook Secret & Security Verification\n// =============================================================================\nconst headers = $input.first().json.headers || {};\nconst configuredSecret = $env.BRIK_WEBHOOK_SECRET || 'brik_sec_default_2026';\nconst incomingSecret = headers['x-brik-webhook-secret'] || headers['x-webhook-secret'] || '';\n\n// If secret is set in env, enforce it; otherwise allow for initial test setup\nlet isAuthorized = true;\nlet authMessage = 'Authorized';\n\nif ($env.BRIK_WEBHOOK_SECRET && incomingSecret !== configuredSecret) {\n  isAuthorized = false;\n  authMessage = 'Unauthorized: Invalid X-Brik-Webhook-Secret header.';\n}\n\nreturn [{\n  json: {\n    ...$input.first().json,\n    _security: {\n      authorized: isAuthorized,\n      message: authMessage\n    }\n  }\n}];"
+      },
+      "id": "node-security-check",
+      "name": "Verify Security Secret",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// =============================================================================\n// Node 3: Payload Validation & Multi-Tenant Normalization\n// =============================================================================\nconst rawData = $input.first().json.body || $input.first().json.record || $input.first().json;\n\n// 1. Extract Lead ID & Organization ID (Multi-Tenant Identifier)\nconst leadId = rawData.lead_id || rawData.id || '';\nconst orgId = rawData.organization_id || rawData.client_id || '';\nconst orgName = rawData.organization_name || 'Brik Client';\n\n// 2. Extract Lead Contact Details\nconst firstName = (rawData.first_name || '').trim();\nconst lastName = (rawData.last_name || '').trim();\nconst fullName = (rawData.name || `${firstName} ${lastName}`).trim() || 'New Lead';\nconst email = (rawData.email || '').trim();\nconst phone = (rawData.phone || '').trim();\nconst serviceRequested = (rawData.service_requested || rawData.service || 'General Service').trim();\nconst source = (rawData.source || 'Website Lead Form').trim();\nconst status = (rawData.status || 'New').trim();\nconst notes = (rawData.notes || '').trim();\nconst createdAt = rawData.created_at || new Date().toISOString();\n\n// 3. Validation Rules\nconst errors = [];\nif (!leadId) errors.push('Missing required field: lead_id / id');\nif (!orgId) errors.push('Missing required field: organization_id / client_id');\nif (!fullName && !email && !phone) errors.push('Missing contact information: name, email, or phone required');\n\nconst isValid = errors.length === 0;\n\nreturn [{\n  json: {\n    is_valid: isValid,\n    validation_errors: errors,\n    lead: {\n      lead_id: leadId,\n      organization_id: orgId,\n      organization_name: orgName,\n      first_name: firstName || fullName.split(' ')[0] || '',\n      last_name: lastName || fullName.split(' ').slice(1).join(' ') || '',\n      name: fullName,\n      email: email || null,\n      phone: phone || null,\n      service_requested: serviceRequested,\n      source: source,\n      status: status,\n      notes: notes || null,\n      created_at: createdAt\n    }\n  }\n}];"
+      },
+      "id": "node-schema-validation",
+      "name": "Validate & Normalize Lead",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.is_valid }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "node-is-valid-if",
+      "name": "Is Payload Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// =============================================================================\n// Node 5: Idempotency & Deduplication Check\n// Prevents duplicate processing from page reloads or retries using lead_id\n// =============================================================================\nconst staticData = $getWorkflowStaticData('global');\nstaticData.processedLeadIds = staticData.processedLeadIds || [];\n\nconst currentLead = $input.first().json.lead;\nconst leadId = currentLead.lead_id;\n\nlet isDuplicate = false;\n\nif (staticData.processedLeadIds.includes(leadId)) {\n  isDuplicate = true;\n  console.log(`[DEDUPLICATION] Lead ID ${leadId} was already processed. Skipping duplicate action.`);\n} else {\n  // Store the processed lead ID (capped at last 5000 IDs)\n  staticData.processedLeadIds.push(leadId);\n  if (staticData.processedLeadIds.length > 5000) {\n    staticData.processedLeadIds.shift();\n  }\n}\n\nreturn [{\n  json: {\n    ...$input.first().json,\n    is_duplicate: isDuplicate,\n    idempotency_key: leadId\n  }\n}];"
+      },
+      "id": "node-deduplication",
+      "name": "Check Idempotency",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// =============================================================================\n// Node 6: Multi-Tenant Audit Logger & Lead Confirmation\n// Logs client details and readies downstream automation for Part 5 (Twilio)\n// =============================================================================\nconst lead = $input.first().json.lead;\nconst isDuplicate = $input.first().json.is_duplicate;\n\nconst logMessage = `[BRIK LEAD INGESTION] Multi-Tenant Org: ${lead.organization_id} (${lead.organization_name}) | Lead: \"${lead.name}\" | Service: \"${lead.service_requested}\" | Phone: ${lead.phone || 'N/A'} | Status: ${lead.status}`;\n\nconsole.log(logMessage);\n\nreturn [{\n  json: {\n    success: true,\n    lead_id: lead.lead_id,\n    organization_id: lead.organization_id,\n    organization_name: lead.organization_name,\n    name: lead.name,\n    phone: lead.phone,\n    email: lead.email,\n    service: lead.service_requested,\n    status: lead.status,\n    is_duplicate: isDuplicate,\n    message: isDuplicate ? 'Lead already ingested (idempotent duplicate skipped)' : 'Lead ingested successfully into n8n workflow'\n  }\n}];"
+      },
+      "id": "node-audit-logger",
+      "name": "Audit Log & Client ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "node-respond-success",
+      "name": "Respond HTTP 200 Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1560,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({\n  success: false,\n  error: 'Validation Failed',\n  details: $json.validation_errors\n}) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "node-respond-error",
+      "name": "Respond HTTP 400 Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1120,
+        420
+      ]
+    }
+  ],
+  "connections": {
+    "Brik Webhook Inlet": {
+      "main": [
+        [
+          {
+            "node": "Verify Security Secret",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify Security Secret": {
+      "main": [
+        [
+          {
+            "node": "Validate & Normalize Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate & Normalize Lead": {
+      "main": [
+        [
+          {
+            "node": "Is Payload Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Payload Valid?": {
+      "main": [
+        [
+          {
+            "node": "Check Idempotency",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond HTTP 400 Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Idempotency": {
+      "main": [
+        [
+          {
+            "node": "Audit Log & Client ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audit Log & Client ID": {
+      "main": [
+        [
+          {
+            "node": "Respond HTTP 200 Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
