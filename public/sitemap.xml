@@ -2,34 +2,34 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <!-- Marketing Pages -->
   <url>
-    <loc>https://briksystems.com/</loc>
+    <loc>https://briksystem000.vercel.app/</loc>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://briksystems.com/services</loc>
+    <loc>https://briksystem000.vercel.app/services</loc>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://briksystems.com/work</loc>
+    <loc>https://briksystem000.vercel.app/work</loc>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://briksystems.com/about</loc>
+    <loc>https://briksystem000.vercel.app/about</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://briksystems.com/contact</loc>
+    <loc>https://briksystem000.vercel.app/contact</loc>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   
   <!-- Auth Gateway -->
   <url>
-    <loc>https://briksystems.com/login</loc>
+    <loc>https://briksystem000.vercel.app/login</loc>
     <changefreq>yearly</changefreq>
     <priority>0.5</priority>
   </url>
