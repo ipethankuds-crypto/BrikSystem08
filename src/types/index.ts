@@ -21,6 +21,8 @@ export type LeadStatus =
 
 export type JobStatus = 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
 
+export type BookingStatus = 'CONFIRMED' | 'COMPLETED' | 'CANCELLED';
+
 export type AppointmentStatus = 'SCHEDULED' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW';
 
 export type ReviewRequestStatus = 'PENDING' | 'SENT' | 'COMPLETED' | 'EXPIRED';
@@ -153,6 +155,24 @@ export interface Appointment {
   notes: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface Booking {
+  id: string;
+  organization_id?: string;
+  business_id?: string;
+  name: string;
+  email: string;
+  phone: string;
+  service_needed: string;
+  booking_date: string;
+  booking_time: string;
+  duration_minutes: number;
+  status: BookingStatus;
+  google_event_id?: string;
+  notes?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface Review {

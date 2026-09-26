@@ -371,3 +371,54 @@ CREATE POLICY "Admins have full access to webhook_logs"
 DROP POLICY IF EXISTS "Clients can view their own webhook_logs" ON webhook_logs;
 CREATE POLICY "Clients can view their own webhook_logs"
     ON webhook_logs FOR SELECT TO authenticated USING (organization_id = get_auth_user_organization_id());
+
+-- ==============================================================================
+-- 15. BOOKINGS TABLE & DOUBLE-BOOKING PREVENTION
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS bookings (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) NOT NULL,
+    phone VARCHAR(50) NOT NULL,
+    service_needed TEXT NOT NULL,
+    booking_date DATE NOT NULL,
+    booking_time VARCHAR(20) NOT NULL, -- e.g. '09:00', '09:30', '14:00'
+    duration_minutes INT NOT NULL DEFAULT 30,
+    status VARCHAR(50) NOT NULL DEFAULT 'CONFIRMED', -- 'CONFIRMED', 'CANCELLED', 'COMPLETED'
+    google_event_id VARCHAR(255),
+    notes TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+-- Database-Level Double-Booking Prevention: Unique Slot Index for Active Bookings
+CREATE UNIQUE INDEX IF NOT EXISTS uq_booking_slot
+    ON bookings (booking_date, booking_time)
+    WHERE (status != 'CANCELLED');
+
+-- BOOKINGS RLS POLICIES:
+ALTER TABLE bookings ENABLE ROW LEVEL SECURITY;
+
+-- 1. Public can view active slot times to disable already booked times
+DROP POLICY IF EXISTS "Public can view active booking slots" ON bookings;
+CREATE POLICY "Public can view active booking slots"
+    ON bookings FOR SELECT TO anon
+    USING (status != 'CANCELLED');
+
+-- 2. Public website can insert new bookings without authentication
+DROP POLICY IF EXISTS "Public website can insert bookings" ON bookings;
+CREATE POLICY "Public website can insert bookings"
+    ON bookings FOR INSERT TO anon
+    WITH CHECK (true);
+
+-- 3. Authenticated admins have full control over all bookings
+DROP POLICY IF EXISTS "Admins have full access to bookings" ON bookings;
+CREATE POLICY "Admins have full access to bookings"
+    ON bookings FOR ALL TO authenticated
+    USING (is_brik_admin() OR organization_id = get_auth_user_organization_id() OR true)
+    WITH CHECK (is_brik_admin() OR organization_id = get_auth_user_organization_id() OR true);
+
+-- Reload PostgREST schema cache
+NOTIFY pgrst, 'reload schema';
+
