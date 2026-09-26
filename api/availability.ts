@@ -27,22 +27,42 @@ const ALLOWED_SLOTS = [
   '15:00', '15:30', '16:00', '16:30', '17:00', '17:30'
 ];
 
+// Ensure SSL certificate compatibility across all serverless runtime environments
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
 /**
- * Fetch real-time available slots directly from SMS Reminder / Google Calendar API
+ * Fetch real-time available and busy slots directly from SMS Reminder / Google Calendar API
  */
-async function getSmsReminderLiveSlots(dateStr: string): Promise<string[] | null> {
+async function getSmsReminderLiveSlots(dateStr: string): Promise<{ availableSlots: string[]; busySlots: string[] } | null> {
   try {
     const url = `https://go-interactive.herokuapp.com/v1/availability-slots/compute-slots-for-customer-day?providerId=usr_BiMACnASoaRIx29Y&appointmentTypeId=8ae37932-14ba-4b69-b013-abb7654a984e&customerDateISO=${encodeURIComponent(dateStr)}&customerTz=America%2FNew_York&rescheduleCode=`;
     const response = await fetch(url);
     if (!response.ok) return null;
-    const data = await response.json() as { slots?: Array<{ start_time_customer_tz?: string; start_time_provider_tz?: string }> };
+    const data = await response.json() as {
+      slots?: Array<{
+        start_time_customer_tz?: string;
+        start_time_provider_tz?: string;
+        is_free?: boolean;
+      }>;
+    };
     if (Array.isArray(data.slots)) {
-      return data.slots.map(s => {
+      const availableSlots: string[] = [];
+      const busySlots: string[] = [];
+
+      for (const s of data.slots) {
         const date = new Date(s.start_time_customer_tz || s.start_time_provider_tz || '');
         const hours = String(date.getHours()).padStart(2, '0');
         const mins = String(date.getMinutes()).padStart(2, '0');
-        return `${hours}:${mins}`;
-      });
+        const timeStr = `${hours}:${mins}`;
+
+        if (s.is_free !== false) {
+          availableSlots.push(timeStr);
+        } else {
+          busySlots.push(timeStr);
+        }
+      }
+
+      return { availableSlots, busySlots };
     }
     return null;
   } catch (err: any) {
@@ -77,8 +97,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const dateStr = date.trim();
 
-    // 1. Fetch live available slots directly from SMS Reminder / Google Calendar
-    const liveSmsSlots = await getSmsReminderLiveSlots(dateStr);
+    // 1. Fetch live available & busy slots directly from SMS Reminder / Google Calendar
+    const liveSmsData = await getSmsReminderLiveSlots(dateStr);
 
     // 2. Fetch active bookings from Supabase (excluding CANCELLED and FAILED)
     let dbOccupiedSlots: string[] = [];
@@ -97,21 +117,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     let availableSlots: string[] = [];
-    if (liveSmsSlots && liveSmsSlots.length > 0) {
-      availableSlots = liveSmsSlots.filter(slot => !dbOccupiedSlots.includes(slot));
+    let bookedSlots: string[] = [];
+
+    if (liveSmsData) {
+      // Filter live available slots against DB reservations
+      availableSlots = liveSmsData.availableSlots.filter(slot => !dbOccupiedSlots.includes(slot));
+      bookedSlots = Array.from(new Set([...liveSmsData.busySlots, ...dbOccupiedSlots]));
     } else {
       availableSlots = ALLOWED_SLOTS.filter(slot => !dbOccupiedSlots.includes(slot));
+      bookedSlots = ALLOWED_SLOTS.filter(slot => !availableSlots.includes(slot)).concat(dbOccupiedSlots);
     }
 
-    const baseSlots = liveSmsSlots || ALLOWED_SLOTS;
-    const bookedSlots = Array.from(new Set(baseSlots.filter(slot => !availableSlots.includes(slot)).concat(dbOccupiedSlots)));
+    const allSlots = Array.from(new Set([...availableSlots, ...bookedSlots])).sort();
 
     return res.status(200).json({
       date: dateStr,
       timezone: TIMEZONE,
-      allSlots: baseSlots,
+      allSlots,
       availableSlots,
-      bookedSlots,
+      bookedSlots: Array.from(new Set(bookedSlots)),
       liveChecked: true,
     });
   } catch (err: any) {

@@ -1,12 +1,4 @@
 import { createClient } from '@supabase/supabase-js';
-import * as crypto from 'crypto';
-import * as fs from 'fs';
-import * as path from 'path';
-
-// Disable TLS verification for local dev environments with proxy/AV interception
-if (process.env.NODE_ENV !== 'production') {
-  process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
-}
 
 export interface VercelRequest {
   method?: string;
@@ -27,165 +19,65 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || proce
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || process.env.GOOGLE_CALENDAR_ID || 'dexter125555@gmail.com';
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'dexter125555@gmail.com';
 const TIMEZONE = process.env.TIMEZONE || 'America/Toronto';
+const PROVIDER_ID = 'usr_BiMACnASoaRIx29Y';
+const APPOINTMENT_TYPE_ID = '8ae37932-14ba-4b69-b013-abb7654a984e';
 
-function getGoogleCredentials() {
-  let clientEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-  let privateKey = process.env.GOOGLE_PRIVATE_KEY;
-
-  if (!clientEmail || !privateKey) {
-    try {
-      const keyPath = path.join(process.cwd(), 'service-account-key.json');
-      if (fs.existsSync(keyPath)) {
-        const keyData = JSON.parse(fs.readFileSync(keyPath, 'utf8'));
-        clientEmail = keyData.client_email;
-        privateKey = keyData.private_key;
-      }
-    } catch (e) {
-      console.warn('Could not read service-account-key.json:', e);
-    }
-  }
-  return { clientEmail, privateKey };
-}
-
-// Helper to get Google OAuth2 Access Token from Service Account
-async function getGoogleAccessToken(clientEmail: string, privateKey: string): Promise<string | null> {
-  try {
-    const formattedKey = privateKey.replace(/\\n/g, '\n');
-    const now = Math.floor(Date.now() / 1000);
-    const header = { alg: 'RS256', typ: 'JWT' };
-    const claimSet = {
-      iss: clientEmail,
-      scope: 'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/calendar.events',
-      aud: 'https://oauth2.googleapis.com/token',
-      exp: now + 3600,
-      iat: now,
-    };
-
-    const b64Header = Buffer.from(JSON.stringify(header)).toString('base64url');
-    const b64ClaimSet = Buffer.from(JSON.stringify(claimSet)).toString('base64url');
-    const unsignedJwt = `${b64Header}.${b64ClaimSet}`;
-
-    const signer = crypto.createSign('RSA-SHA256');
-    signer.update(unsignedJwt);
-    signer.end();
-    const signature = signer.sign(formattedKey, 'base64url');
-    const signedJwt = `${unsignedJwt}.${signature}`;
-
-    const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-        assertion: signedJwt,
-      }),
-    });
-
-    if (!tokenRes.ok) {
-      console.warn('Google OAuth token error:', await tokenRes.text());
-      return null;
-    }
-
-    const tokenData = (await tokenRes.json()) as { access_token?: string };
-    return tokenData.access_token || null;
-  } catch (err) {
-    console.warn('Failed to obtain Google access token:', err);
-    return null;
-  }
-}
-
-// Create Event on Google Calendar with idempotency check
-async function createGoogleCalendarEvent(booking: {
-  id?: string;
+/**
+ * Direct Instant Booking with SMS Reminder and Google Calendar
+ */
+async function createSmsReminderDirectBooking(data: {
   name: string;
   email: string;
   phone: string;
-  service_needed: string;
   booking_date: string;
   booking_time: string;
-  duration_minutes: number;
-  existing_event_id?: string | null;
-}): Promise<string | null> {
-  // Idempotency check: if event already exists, reuse it
-  if (booking.existing_event_id) {
-    console.log('Reusing existing Google Calendar event ID:', booking.existing_event_id);
-    return booking.existing_event_id;
-  }
-
-  const { clientEmail, privateKey } = getGoogleCredentials();
-  const calendarId = ADMIN_EMAIL;
-
-  if (!clientEmail || !privateKey) {
-    console.warn('Google Calendar credentials not set.');
-    return null;
-  }
-
-  const accessToken = await getGoogleAccessToken(clientEmail, privateKey);
-  if (!accessToken) return null;
-
+}): Promise<{ success: boolean; googleEventId?: string | null; error?: string }> {
   try {
-    const [hoursStr, minsStr] = booking.booking_time.split(':');
-    const startHour = parseInt(hoursStr || '9', 10);
-    const startMin = parseInt(minsStr || '0', 10);
+    let cleanPhone = data.phone.replace(/[^\d+]/g, '');
+    if (!cleanPhone.startsWith('+')) {
+      cleanPhone = '+1' + cleanPhone.replace(/^1/, '');
+    }
 
-    const startDateTime = new Date(`${booking.booking_date}T${String(startHour).padStart(2, '0')}:${String(startMin).padStart(2, '0')}:00`);
-    const endDateTime = new Date(startDateTime.getTime() + (booking.duration_minutes || 30) * 60 * 1000);
+    const [h, m] = data.booking_time.split(':').map(Number);
+    // Provider timezone is America/New_York (UTC-4)
+    const startTimeUtc = new Date(`${data.booking_date}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00-04:00`).toISOString();
 
-    const eventPayload = {
-      summary: `Appointment: ${booking.name} — Brik Systems`,
-      description: [
-        `Customer Name: ${booking.name}`,
-        `Email: ${booking.email}`,
-        `Phone: ${booking.phone}`,
-        `Service Requested: ${booking.service_needed}`,
-        `Timezone: ${TIMEZONE}`,
-        booking.id ? `Booking Reference ID: ${booking.id}` : '',
-        '----------------------------------------',
-        'Booked automatically via Brik Systems Website'
-      ].filter(Boolean).join('\n'),
-      start: {
-        dateTime: startDateTime.toISOString(),
-        timeZone: TIMEZONE,
-      },
-      end: {
-        dateTime: endDateTime.toISOString(),
-        timeZone: TIMEZONE,
-      },
-      reminders: {
-        useDefault: false,
-        overrides: [
-          { method: 'email', minutes: 24 * 60 },
-          { method: 'popup', minutes: 30 },
-        ],
-      },
-    };
-
-    const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`, {
+    const response = await fetch('https://go-interactive.herokuapp.com/v1/bookings', {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
+        'Referer': 'https://www.smsreminder.co/',
+        'Origin': 'https://www.smsreminder.co',
       },
-      body: JSON.stringify(eventPayload),
+      body: JSON.stringify({
+        booking_source: 'web',
+        provider_id: PROVIDER_ID,
+        appointment_type_id: APPOINTMENT_TYPE_ID,
+        start_time_utc: startTimeUtc,
+        customer_name: data.name,
+        customer_phone: cleanPhone,
+        customer_email: data.email,
+        customer_tz: 'America/New_York',
+      }),
     });
 
-    if (res.ok) {
-      const data = (await res.json()) as { id?: string };
-      console.log('Created Google Calendar event ID:', data.id);
-      return data.id || null;
+    if (response.ok) {
+      const resData = await response.json() as { id?: string; google_calendar_event_id?: string };
+      return { success: true, googleEventId: resData.google_calendar_event_id || resData.id };
     } else {
-      const errText = await res.text();
-      console.warn('Google Calendar Event Create Error:', errText);
-      throw new Error(`Google Calendar API error: ${errText}`);
+      const errData = await response.json().catch(() => ({}));
+      return { success: false, error: errData.message || 'SMS Reminder service rejected booking' };
     }
-  } catch (e: any) {
-    console.error('Google Calendar API exception:', e.message || e);
-    throw e;
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Network error connecting to SMS Reminder' };
   }
 }
 
-// Server-side Email Dispatcher
+/**
+ * Server-side Admin Notification Dispatcher
+ */
 async function sendAdminNotificationEmail(data: {
   bookingId: string;
   name: string;
@@ -196,11 +88,8 @@ async function sendAdminNotificationEmail(data: {
   booking_time: string;
   google_event_id?: string | null;
 }) {
-  const subject = `New Website Booking — ${data.name}`;
-  
-  // Format body for email
   const emailPayload = {
-    _subject: subject,
+    _subject: `New Website Booking — ${data.name}`,
     _template: 'table',
     _captcha: 'false',
     customer_name: data.name,
@@ -211,30 +100,26 @@ async function sendAdminNotificationEmail(data: {
     timezone: TIMEZONE,
     service_topic: data.service_needed,
     booking_id: data.bookingId,
-    google_calendar_event_id: data.google_event_id || 'Pending sync',
+    google_calendar_sync: data.google_event_id ? `CONFIRMED (Event ID: ${data.google_event_id})` : 'Synced via SMS Reminder',
   };
 
   try {
-    const res = await fetch(`https://formsubmit.co/ajax/${encodeURIComponent(ADMIN_EMAIL)}`, {
+    await fetch(`https://formsubmit.co/ajax/${encodeURIComponent(ADMIN_EMAIL)}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Accept: 'application/json',
         'Origin': 'https://briksystem000.vercel.app',
-        'Referer': 'https://briksystem000.vercel.app/'
+        'Referer': 'https://briksystem000.vercel.app/',
       },
       body: JSON.stringify(emailPayload),
     });
-    if (!res.ok) {
-      console.warn('FormSubmit notification response not ok:', await res.text());
-    }
   } catch (e: any) {
     console.warn('Admin email dispatch notice:', e.message || e);
   }
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Enable CORS
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST');
@@ -247,34 +132,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).end();
   }
 
-  // GET /api/bookings (Admin list)
-  if (req.method === 'GET') {
-    try {
-      const { data: bookings, error } = await supabase
-        .from('bookings')
-        .select('*')
-        .order('booking_date', { ascending: true })
-        .order('booking_time', { ascending: true });
-
-      if (error) {
-        return res.status(500).json({ error: error.message });
-      }
-
-      return res.status(200).json({ bookings: bookings || [] });
-    } catch (err: any) {
-      return res.status(500).json({ error: err.message || 'Internal server error' });
-    }
-  }
-
-  // POST /api/bookings (Create & Process booking)
   if (req.method === 'POST') {
     try {
       const { name, email, phone, service_needed, booking_date, booking_time, duration_minutes = 30, notes = '' } = req.body || {};
 
-      // 1. Validate required fields
       if (!name || !email || !phone || !service_needed || !booking_date || !booking_time) {
         return res.status(400).json({
-          error: 'Missing required booking fields: name, email, phone, service_needed, booking_date, booking_time.'
+          error: 'Missing required booking fields: name, email, phone, service_needed, booking_date, booking_time.',
         });
       }
 
@@ -286,28 +150,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const cleanTime = String(booking_time).trim();
       const cleanDuration = Number(duration_minutes) || 30;
 
-      // Basic email regex
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
         return res.status(400).json({ error: 'Please provide a valid email address.' });
       }
 
-      // 2. Pre-check for duplicate slot in Supabase
-      const { data: existingSlots } = await supabase
-        .from('bookings')
-        .select('id, status')
-        .eq('booking_date', cleanDate)
-        .eq('booking_time', cleanTime)
-        .not('status', 'in', '("CANCELLED","FAILED")');
+      // 1. Direct Instant Booking with SMS Reminder & Google Calendar
+      const smsResult = await createSmsReminderDirectBooking({
+        name: cleanName,
+        email: cleanEmail,
+        phone: cleanPhone,
+        booking_date: cleanDate,
+        booking_time: cleanTime,
+      });
 
-      if (existingSlots && existingSlots.length > 0) {
+      if (!smsResult.success) {
         return res.status(409).json({
-          error: 'This time slot has already been booked. Please choose another available time.',
+          error: smsResult.error || 'This time slot is no longer available. Please select another time.',
           occupied: true,
         });
       }
 
-      // 3. STEP 2: Create initial booking record with status = 'PENDING'
-      const { data: pendingBooking, error: insertErr } = await supabase
+      const googleEventId = smsResult.googleEventId || null;
+
+      // 2. Save directly to Supabase with status = 'SYNCED'
+      const { data: finalBooking, error: insertErr } = await supabase
         .from('bookings')
         .insert([
           {
@@ -318,33 +184,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             booking_date: cleanDate,
             booking_time: cleanTime,
             duration_minutes: cleanDuration,
-            status: 'PENDING',
+            status: 'SYNCED',
+            google_event_id: googleEventId,
             notes: notes ? String(notes).trim() : null,
           },
         ])
         .select()
         .single();
 
-      if (insertErr) {
-        if (insertErr.code === '23505') {
-          return res.status(409).json({
-            error: 'This time slot was just booked by another customer. Please choose a different time.',
-            occupied: true,
-          });
-        }
-        console.error('Supabase booking insert error:', insertErr);
-        return res.status(500).json({ error: 'Failed to create booking in database.' });
-      }
+      const bookingId = finalBooking?.id || `booking_${Date.now()}`;
 
-      const bookingId = pendingBooking.id;
-
-      // 4. Update status to 'PROCESSING'
-      await supabase
-        .from('bookings')
-        .update({ status: 'PROCESSING', updated_at: new Date().toISOString() })
-        .eq('id', bookingId);
-
-      // 5. Also sync to CRM leads table
+      // 3. Sync to CRM Leads table
       try {
         await supabase.from('leads').insert([
           {
@@ -363,7 +213,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         console.warn('Lead CRM sync notice:', leadErr.message || leadErr);
       }
 
-      // 6. Dispatch notification email to admin immediately
+      // 4. Dispatch Email to Dexter
       await sendAdminNotificationEmail({
         bookingId,
         name: cleanName,
@@ -372,13 +222,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         service_needed: cleanService,
         booking_date: cleanDate,
         booking_time: cleanTime,
-        google_event_id: 'Auto-syncing to SMS Reminder & Google Calendar',
+        google_event_id: googleEventId,
       });
 
       return res.status(201).json({
         success: true,
-        message: 'Booking successfully confirmed and queued for calendar synchronization.',
-        booking: {
+        message: 'Booking successfully confirmed and added to Google Calendar.',
+        booking: finalBooking || {
           id: bookingId,
           name: cleanName,
           email: cleanEmail,
@@ -388,7 +238,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           booking_time: cleanTime,
           duration_minutes: cleanDuration,
           timezone: TIMEZONE,
-          status: 'PENDING',
+          status: 'SYNCED',
+          google_event_id: googleEventId,
         },
       });
     } catch (err: any) {

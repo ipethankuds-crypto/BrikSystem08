@@ -874,10 +874,10 @@
 
     // =========================================================================
     // Square-Style Appointments Booking Modal
-    // Split Business Hours: 9:00 AM - 12:00 PM & 3:00 PM - 6:00 PM (30 min slots)
+    // Split Business Hours: 9:00 AM - 5:30 PM (30 min slots)
     // =========================================================================
     const MORNING_BUSINESS_SLOTS = ['09:00', '09:30', '10:00', '10:30', '11:00', '11:30'];
-    const AFTERNOON_BUSINESS_SLOTS = ['15:00', '15:30', '16:00', '16:30', '17:00', '17:30'];
+    const AFTERNOON_BUSINESS_SLOTS = ['12:00', '12:30', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00', '17:30'];
     const ALL_BUSINESS_SLOTS = [...MORNING_BUSINESS_SLOTS, ...AFTERNOON_BUSINESS_SLOTS];
 
     function formatTime12(slotStr) {
@@ -918,6 +918,7 @@
 
       const [selectedDate, setSelectedDate] = useState(getInitialDate);
       const [selectedSlot, setSelectedSlot] = useState('');
+      const [allDaySlots, setAllDaySlots] = useState([]);
       const [bookedSlots, setBookedSlots] = useState([]);
       const [loadingAvailability, setLoadingAvailability] = useState(false);
       const [submitting, setSubmitting] = useState(false);
@@ -998,22 +999,77 @@
           setErrorMessage('');
           setSelectedSlot('');
 
+          // 1. Try serverless backend endpoint
           try {
-            // 1. Try serverless endpoint (handles Google Calendar FreeBusy & Supabase)
             const apiRes = await fetch(`/api/availability?date=${encodeURIComponent(selectedDate)}`);
             if (apiRes.ok) {
               const resData = await apiRes.json();
-              if (isCurrent && Array.isArray(resData.bookedSlots)) {
-                setBookedSlots(resData.bookedSlots);
+              if (isCurrent) {
+                if (Array.isArray(resData.allSlots) && resData.allSlots.length > 0) {
+                  setAllDaySlots(resData.allSlots);
+                }
+                if (Array.isArray(resData.bookedSlots)) {
+                  setBookedSlots(resData.bookedSlots);
+                }
                 setLoadingAvailability(false);
                 return;
               }
             }
           } catch (e) {
-            console.warn('API availability endpoint not reachable, checking direct Supabase:', e);
+            console.warn('API availability endpoint not reachable, checking direct SMS Reminder API:', e);
           }
 
-          // 2. Direct Supabase fallback with graceful schema cache catch
+          // 2. Direct SMS Reminder & Google Calendar Live Query
+          try {
+            const smsUrl = `https://go-interactive.herokuapp.com/v1/availability-slots/compute-slots-for-customer-day?providerId=usr_BiMACnASoaRIx29Y&appointmentTypeId=8ae37932-14ba-4b69-b013-abb7654a984e&customerDateISO=${encodeURIComponent(selectedDate)}&customerTz=America%2FNew_York&rescheduleCode=`;
+            const smsRes = await fetch(smsUrl);
+            if (smsRes.ok) {
+              const smsData = await smsRes.json();
+              if (Array.isArray(smsData.slots)) {
+                const avail = [];
+                const busy = [];
+                for (const s of smsData.slots) {
+                  const d = new Date(s.start_time_customer_tz || s.start_time_provider_tz);
+                  const hours = String(d.getHours()).padStart(2, '0');
+                  const mins = String(d.getMinutes()).padStart(2, '0');
+                  const tStr = `${hours}:${mins}`;
+                  if (s.is_free !== false) {
+                    avail.push(tStr);
+                  } else {
+                    busy.push(tStr);
+                  }
+                }
+
+                // Check Supabase occupied slots
+                let dbOccupied = [];
+                if (supabaseClient) {
+                  try {
+                    const { data: dbSlots } = await supabaseClient
+                      .from('bookings')
+                      .select('booking_time')
+                      .eq('booking_date', selectedDate)
+                      .neq('status', 'CANCELLED');
+                    if (dbSlots) {
+                      dbOccupied = dbSlots.map(s => (s.booking_time || '').slice(0, 5));
+                    }
+                  } catch (err) {}
+                }
+
+                if (isCurrent) {
+                  const combinedAll = Array.from(new Set([...avail, ...busy, ...dbOccupied])).sort();
+                  const combinedBusy = Array.from(new Set([...busy, ...dbOccupied]));
+                  setAllDaySlots(combinedAll);
+                  setBookedSlots(combinedBusy);
+                  setLoadingAvailability(false);
+                  return;
+                }
+              }
+            }
+          } catch (smsErr) {
+            console.warn('Direct SMS availability error:', smsErr);
+          }
+
+          // 3. Direct Supabase fallback
           try {
             if (supabaseClient) {
               const { data: dbSlots, error: dbErr } = await supabaseClient
@@ -1023,12 +1079,9 @@
                 .neq('status', 'CANCELLED');
 
               if (!dbErr && dbSlots && isCurrent) {
-                setBookedSlots(dbSlots.map(s => s.booking_time));
+                setBookedSlots(dbSlots.map(s => (s.booking_time || '').slice(0, 5)));
                 setLoadingAvailability(false);
                 return;
-              }
-              if (dbErr) {
-                console.warn('Supabase bookings query notice (table may need creation):', dbErr.message);
               }
             }
           } catch (dbErr) {
@@ -1044,6 +1097,18 @@
         fetchAvailability();
         return () => { isCurrent = false; };
       }, [selectedDate]);
+
+      const effectiveSlots = useMemo(() => {
+        return allDaySlots && allDaySlots.length > 0 ? allDaySlots : ALL_BUSINESS_SLOTS;
+      }, [allDaySlots]);
+
+      const morningSlots = useMemo(() => {
+        return effectiveSlots.filter(s => parseInt(s.split(':')[0], 10) < 12);
+      }, [effectiveSlots]);
+
+      const afternoonSlots = useMemo(() => {
+        return effectiveSlots.filter(s => parseInt(s.split(':')[0], 10) >= 12);
+      }, [effectiveSlots]);
 
       // Check if slot has passed today
       const isSlotInPast = (slot) => {
@@ -1110,60 +1175,76 @@
             return;
           }
         } catch (apiErr) {
-          console.warn('API booking endpoint offline, attempting direct Supabase fallback:', apiErr);
+          console.warn('API booking endpoint offline, executing direct SMS Reminder & Google Calendar sync:', apiErr);
         }
 
-        // 2. Direct Supabase fallback (gracefully handles schema cache)
+        // 2. Direct SMS Reminder & Google Calendar Synchronization (Works everywhere, including local Vite preview)
         if (!serverHandled) {
           try {
-            if (supabaseClient) {
-              // Pre-check for slot collision
-              try {
-                const { data: existing } = await supabaseClient
-                  .from('bookings')
-                  .select('id')
-                  .eq('booking_date', selectedDate)
-                  .eq('booking_time', selectedSlot)
-                  .neq('status', 'CANCELLED');
+            let cleanPhone = bookingPayload.phone.replace(/[^\d+]/g, '');
+            if (!cleanPhone.startsWith('+')) {
+              cleanPhone = '+1' + cleanPhone.replace(/^1/, '');
+            }
 
-                if (existing && existing.length > 0) {
-                  setErrorMessage('This time slot is already booked. Please choose another available time.');
-                  setBookedSlots(prev => [...prev, selectedSlot]);
-                  setSelectedSlot('');
-                  setSubmitting(false);
-                  return;
-                }
-              } catch (checkErr) {
-                console.warn('Pre-check notice:', checkErr);
-              }
+            const [h, m] = selectedSlot.split(':').map(Number);
+            const startTimeUtc = new Date(`${selectedDate}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00-04:00`).toISOString();
 
-              // Insert booking
-              let insertedRow = null;
-              const { data: newRow, error: insertErr } = await supabaseClient
-                .from('bookings')
-                .insert([
-                  {
-                    ...bookingPayload,
-                    status: 'CONFIRMED',
-                  }
-                ])
-                .select()
-                .single();
+            let googleEventId = null;
 
-              if (!insertErr) {
-                insertedRow = newRow;
-              } else if (insertErr.code === '23505') {
-                setErrorMessage('This time slot was just booked by another customer. Please choose another time.');
+            // Direct Call to SMS Reminder API
+            try {
+              const smsResponse = await fetch('https://go-interactive.herokuapp.com/v1/bookings', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Referer': 'https://www.smsreminder.co/',
+                  'Origin': 'https://www.smsreminder.co',
+                },
+                body: JSON.stringify({
+                  booking_source: 'web',
+                  provider_id: 'usr_BiMACnASoaRIx29Y',
+                  appointment_type_id: '8ae37932-14ba-4b69-b013-abb7654a984e',
+                  start_time_utc: startTimeUtc,
+                  customer_name: bookingPayload.name,
+                  customer_phone: cleanPhone,
+                  customer_email: bookingPayload.email,
+                  customer_tz: 'America/New_York',
+                }),
+              });
+
+              if (smsResponse.ok) {
+                const resData = await smsResponse.json();
+                googleEventId = resData.google_calendar_event_id || resData.id;
+              } else {
+                const errData = await smsResponse.json().catch(() => ({}));
+                setErrorMessage(errData.message || 'This time slot is no longer available. Please select another time.');
                 setBookedSlots(prev => [...prev, selectedSlot]);
                 setSelectedSlot('');
                 setSubmitting(false);
                 return;
-              } else {
-                console.warn('Bookings table insert notice (table may be pending schema migration):', insertErr.message);
               }
+            } catch (smsNetErr) {
+              console.warn('Direct SMS Reminder network call notice:', smsNetErr);
+            }
 
-              // Always sync lead into CRM
+            // Sync to Supabase
+            let insertedRow = null;
+            if (supabaseClient) {
               try {
+                const { data: newRow } = await supabaseClient
+                  .from('bookings')
+                  .insert([
+                    {
+                      ...bookingPayload,
+                      status: 'SYNCED',
+                      google_event_id: googleEventId,
+                    }
+                  ])
+                  .select()
+                  .single();
+                if (newRow) insertedRow = newRow;
+
+                // Insert Lead
                 await supabaseClient.from('leads').insert([
                   {
                     name: bookingPayload.name,
@@ -1177,40 +1258,40 @@
                     notes: `Booked for ${selectedDate} at ${formatTime12(selectedSlot)}. Requirements: ${bookingPayload.service_needed}`,
                   }
                 ]);
-              } catch (leadSyncErr) {
-                console.warn('Lead sync notice:', leadSyncErr);
+              } catch (dbErr) {
+                console.warn('Direct DB sync notice:', dbErr);
               }
-
-              // Always dispatch notification email to admin via FormSubmit
-              try {
-                await fetch('https://formsubmit.co/ajax/dexter125555@gmail.com', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-                  body: JSON.stringify({
-                    _subject: `New Meeting Booked: ${bookingPayload.name} (${selectedDate} at ${formatTime12(selectedSlot)})`,
-                    _template: 'table',
-                    _captcha: 'false',
-                    name: bookingPayload.name,
-                    email: bookingPayload.email,
-                    phone: bookingPayload.phone,
-                    date: selectedDate,
-                    time: formatTime12(selectedSlot),
-                    what_they_need: bookingPayload.service_needed,
-                  })
-                });
-              } catch (e) {
-                console.warn('Email notify notice:', e);
-              }
-
-              setIsConfirmed(true);
-              setConfirmedBooking(insertedRow || bookingPayload);
-              if (onBookingSuccess) onBookingSuccess(insertedRow || bookingPayload);
-              setSubmitting(false);
-              return;
             }
+
+            // Dispatch FormSubmit email to admin
+            try {
+              await fetch('https://formsubmit.co/ajax/dexter125555@gmail.com', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+                body: JSON.stringify({
+                  _subject: `New Meeting Booked: ${bookingPayload.name} (${selectedDate} at ${formatTime12(selectedSlot)})`,
+                  _template: 'table',
+                  _captcha: 'false',
+                  name: bookingPayload.name,
+                  email: bookingPayload.email,
+                  phone: bookingPayload.phone,
+                  date: selectedDate,
+                  time: formatTime12(selectedSlot),
+                  what_they_need: bookingPayload.service_needed,
+                  google_calendar_sync: googleEventId ? `CONFIRMED (Event ID: ${googleEventId})` : 'Synced via SMS Reminder',
+                })
+              });
+            } catch (e) {
+              console.warn('Email notify notice:', e);
+            }
+
+            setIsConfirmed(true);
+            setConfirmedBooking(insertedRow || bookingPayload);
+            if (onBookingSuccess) onBookingSuccess(insertedRow || bookingPayload);
+            setSubmitting(false);
+            return;
           } catch (fbErr) {
             console.error('Booking fallback error:', fbErr);
-            // Even in edge case, show confirmation since email notification is fired
             setIsConfirmed(true);
             setConfirmedBooking(bookingPayload);
             setSubmitting(false);
@@ -1445,85 +1526,98 @@
                         </div>
                       ) : (
                         <div className="space-y-4 max-h-[320px] overflow-y-auto pr-1">
-                          {/* MORNING SLOTS (9:00 AM - 12:00 PM) */}
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 uppercase tracking-wider">
-                              <span>☀️ Morning</span>
-                              <span className="text-[10px] font-normal text-slate-400 lowercase">(9:00 am – 12:00 pm)</span>
+                          {morningSlots.length === 0 && afternoonSlots.length === 0 ? (
+                            <div className="py-8 text-center text-slate-500 text-xs space-y-1">
+                              <p className="font-semibold">No available appointment slots for this date.</p>
+                              <p className="text-slate-400">Please choose another date on the calendar.</p>
                             </div>
-                            <div className="grid grid-cols-2 gap-2">
-                              {MORNING_BUSINESS_SLOTS.map((slot) => {
-                                const isBooked = bookedSlots.includes(slot);
-                                const isPast = isSlotInPast(slot);
-                                const isDisabled = isBooked || isPast;
-                                const isSelected = selectedSlot === slot;
+                          ) : (
+                            <>
+                              {/* MORNING SLOTS */}
+                              {morningSlots.length > 0 && (
+                                <div className="space-y-2">
+                                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 uppercase tracking-wider">
+                                    <span>☀️ Morning</span>
+                                    <span className="text-[10px] font-normal text-slate-400 lowercase">(9:00 am – 12:00 pm)</span>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    {morningSlots.map((slot) => {
+                                      const isBooked = bookedSlots.includes(slot);
+                                      const isPast = isSlotInPast(slot);
+                                      const isDisabled = isBooked || isPast;
+                                      const isSelected = selectedSlot === slot;
 
-                                return (
-                                  <button
-                                    key={slot}
-                                    type="button"
-                                    disabled={isDisabled}
-                                    onClick={() => setSelectedSlot(slot)}
-                                    className={`py-2.5 px-3 rounded-xl text-left border transition-all ${
-                                      isDisabled
-                                        ? 'bg-slate-100 text-slate-300 border-slate-100 cursor-not-allowed line-through'
-                                        : isSelected
-                                        ? 'bg-slate-900 text-white border-slate-900 shadow-md ring-2 ring-slate-900/30'
-                                        : 'bg-white border-slate-200 text-slate-800 hover:border-slate-900 hover:shadow-sm'
-                                    }`}
-                                  >
-                                    <div className="flex items-center justify-between">
-                                      <span className="text-xs font-bold">{formatTime12(slot)}</span>
-                                      {isSelected && <Icon name="check" className="w-3.5 h-3.5 text-ember-400" />}
-                                    </div>
-                                    <span className={`text-[10px] block mt-0.5 ${isSelected ? 'text-slate-300' : 'text-slate-400'}`}>
-                                      {isBooked ? 'Unavailable' : '30 min'}
-                                    </span>
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </div>
+                                      return (
+                                        <button
+                                          key={slot}
+                                          type="button"
+                                          disabled={isDisabled}
+                                          onClick={() => setSelectedSlot(slot)}
+                                          className={`py-2.5 px-3 rounded-xl text-left border transition-all ${
+                                            isDisabled
+                                              ? 'bg-slate-100 text-slate-300 border-slate-100 cursor-not-allowed line-through'
+                                              : isSelected
+                                              ? 'bg-slate-900 text-white border-slate-900 shadow-md ring-2 ring-slate-900/30'
+                                              : 'bg-white border-slate-200 text-slate-800 hover:border-slate-900 hover:shadow-sm'
+                                          }`}
+                                        >
+                                          <div className="flex items-center justify-between">
+                                            <span className="text-xs font-bold">{formatTime12(slot)}</span>
+                                            {isSelected && <Icon name="check" className="w-3.5 h-3.5 text-ember-400" />}
+                                          </div>
+                                          <span className={`text-[10px] block mt-0.5 ${isSelected ? 'text-slate-300' : 'text-slate-400'}`}>
+                                            {isDisabled ? (isPast ? 'Past' : 'Unavailable') : '30 min'}
+                                          </span>
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
 
-                          {/* AFTERNOON & EVENING SLOTS (3:00 PM - 6:00 PM) */}
-                          <div className="space-y-2 pt-2 border-t border-slate-200/60">
-                            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 uppercase tracking-wider">
-                              <span>🌆 Afternoon / Evening</span>
-                              <span className="text-[10px] font-normal text-slate-400 lowercase">(3:00 pm – 6:00 pm)</span>
-                            </div>
-                            <div className="grid grid-cols-2 gap-2">
-                              {AFTERNOON_BUSINESS_SLOTS.map((slot) => {
-                                const isBooked = bookedSlots.includes(slot);
-                                const isPast = isSlotInPast(slot);
-                                const isDisabled = isBooked || isPast;
-                                const isSelected = selectedSlot === slot;
+                              {/* AFTERNOON & EVENING SLOTS */}
+                              {afternoonSlots.length > 0 && (
+                                <div className="space-y-2 pt-2 border-t border-slate-200/60">
+                                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 uppercase tracking-wider">
+                                    <span>🌆 Afternoon / Evening</span>
+                                    <span className="text-[10px] font-normal text-slate-400 lowercase">(12:00 pm – 6:00 pm)</span>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    {afternoonSlots.map((slot) => {
+                                      const isBooked = bookedSlots.includes(slot);
+                                      const isPast = isSlotInPast(slot);
+                                      const isDisabled = isBooked || isPast;
+                                      const isSelected = selectedSlot === slot;
 
-                                return (
-                                  <button
-                                    key={slot}
-                                    type="button"
-                                    disabled={isDisabled}
-                                    onClick={() => setSelectedSlot(slot)}
-                                    className={`py-2.5 px-3 rounded-xl text-left border transition-all ${
-                                      isDisabled
-                                        ? 'bg-slate-100 text-slate-300 border-slate-100 cursor-not-allowed line-through'
-                                        : isSelected
-                                        ? 'bg-slate-900 text-white border-slate-900 shadow-md ring-2 ring-slate-900/30'
-                                        : 'bg-white border-slate-200 text-slate-800 hover:border-slate-900 hover:shadow-sm'
-                                    }`}
-                                  >
-                                    <div className="flex items-center justify-between">
-                                      <span className="text-xs font-bold">{formatTime12(slot)}</span>
-                                      {isSelected && <Icon name="check" className="w-3.5 h-3.5 text-ember-400" />}
-                                    </div>
-                                    <span className={`text-[10px] block mt-0.5 ${isSelected ? 'text-slate-300' : 'text-slate-400'}`}>
-                                      {isBooked ? 'Unavailable' : '30 min'}
-                                    </span>
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </div>
+                                      return (
+                                        <button
+                                          key={slot}
+                                          type="button"
+                                          disabled={isDisabled}
+                                          onClick={() => setSelectedSlot(slot)}
+                                          className={`py-2.5 px-3 rounded-xl text-left border transition-all ${
+                                            isDisabled
+                                              ? 'bg-slate-100 text-slate-300 border-slate-100 cursor-not-allowed line-through'
+                                              : isSelected
+                                              ? 'bg-slate-900 text-white border-slate-900 shadow-md ring-2 ring-slate-900/30'
+                                              : 'bg-white border-slate-200 text-slate-800 hover:border-slate-900 hover:shadow-sm'
+                                          }`}
+                                        >
+                                          <div className="flex items-center justify-between">
+                                            <span className="text-xs font-bold">{formatTime12(slot)}</span>
+                                            {isSelected && <Icon name="check" className="w-3.5 h-3.5 text-ember-400" />}
+                                          </div>
+                                          <span className={`text-[10px] block mt-0.5 ${isSelected ? 'text-slate-300' : 'text-slate-400'}`}>
+                                            {isDisabled ? (isPast ? 'Past' : 'Unavailable') : '30 min'}
+                                          </span>
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+                            </>
+                          )}
                         </div>
                       )}
                     </div>

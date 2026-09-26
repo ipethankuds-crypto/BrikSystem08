@@ -18,9 +18,10 @@ app.use(cors());
 app.use(express.json());
 
 // Configuration
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || process.env.GOOGLE_CALENDAR_ID || 'ipethankuds@gmail.com';
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'dexter125555@gmail.com';
 const TIMEZONE = process.env.TIMEZONE || 'America/Toronto';
-const SERVICE_ACCOUNT_PATH = process.env.GOOGLE_APPLICATION_CREDENTIALS || path.join(process.cwd(), 'service-account-key.json');
+const PROVIDER_ID = 'usr_BiMACnASoaRIx29Y';
+const APPOINTMENT_TYPE_ID = '8ae37932-14ba-4b69-b013-abb7654a984e';
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || 'https://qrrdmhwpiiwtixofyvqf.supabase.co';
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFycmRtaHdwaWl3dGl4b2Z5dnFmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgyMDA2MjQsImV4cCI6MjEwMzc3NjYyNH0.K2f7ZRKiCaA9_PJPZZ-sQ2GY0tsxWQsd7hNwHiriEnc';
@@ -29,11 +30,92 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
 const ALLOWED_SLOTS = [
   '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
+  '12:00', '12:30', '13:00', '13:30', '14:00', '14:30',
   '15:00', '15:30', '16:00', '16:30', '17:00', '17:30'
 ];
 
 /**
- * Fetch real-time available slots directly from SMS Reminder / Google Calendar API
+ * Direct Instant Booking with SMS Reminder and Google Calendar
+ */
+async function createSmsReminderDirectBooking(data) {
+  try {
+    let cleanPhone = data.phone.replace(/[^\d+]/g, '');
+    if (!cleanPhone.startsWith('+')) {
+      cleanPhone = '+1' + cleanPhone.replace(/^1/, '');
+    }
+
+    const [h, m] = data.booking_time.split(':').map(Number);
+    // Provider timezone is America/New_York (UTC-4)
+    const startTimeUtc = new Date(`${data.booking_date}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00-04:00`).toISOString();
+
+    const response = await fetch('https://go-interactive.herokuapp.com/v1/bookings', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Referer': 'https://www.smsreminder.co/',
+        'Origin': 'https://www.smsreminder.co',
+      },
+      body: JSON.stringify({
+        booking_source: 'web',
+        provider_id: PROVIDER_ID,
+        appointment_type_id: APPOINTMENT_TYPE_ID,
+        start_time_utc: startTimeUtc,
+        customer_name: data.name,
+        customer_phone: cleanPhone,
+        customer_email: data.email,
+        customer_tz: 'America/New_York',
+      }),
+    });
+
+    if (response.ok) {
+      const resData = await response.json();
+      return { success: true, googleEventId: resData.google_calendar_event_id || resData.id };
+    } else {
+      const errData = await response.json().catch(() => ({}));
+      return { success: false, error: errData.message || 'SMS Reminder service rejected booking' };
+    }
+  } catch (err) {
+    return { success: false, error: err.message || 'Network error connecting to SMS Reminder' };
+  }
+}
+
+/**
+ * Server-side Admin Notification Dispatcher
+ */
+async function sendAdminNotificationEmail(data) {
+  const emailPayload = {
+    _subject: `New Website Booking — ${data.name}`,
+    _template: 'table',
+    _captcha: 'false',
+    customer_name: data.name,
+    customer_email: data.email,
+    customer_phone: data.phone,
+    booking_date: data.booking_date,
+    booking_time: data.booking_time,
+    timezone: TIMEZONE,
+    service_topic: data.service_needed,
+    booking_id: data.bookingId,
+    google_calendar_sync: data.google_event_id ? `CONFIRMED (Event ID: ${data.google_event_id})` : 'Synced via SMS Reminder',
+  };
+
+  try {
+    await fetch(`https://formsubmit.co/ajax/${encodeURIComponent(ADMIN_EMAIL)}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        'Origin': 'https://briksystem000.vercel.app',
+        'Referer': 'https://briksystem000.vercel.app/',
+      },
+      body: JSON.stringify(emailPayload),
+    });
+  } catch (e) {
+    console.warn('Admin email dispatch notice:', e.message || e);
+  }
+}
+
+/**
+ * Fetch real-time available and busy slots directly from SMS Reminder / Google Calendar API
  */
 async function getSmsReminderLiveSlots(dateStr) {
   try {
@@ -42,12 +124,23 @@ async function getSmsReminderLiveSlots(dateStr) {
     if (!response.ok) return null;
     const data = await response.json();
     if (Array.isArray(data.slots)) {
-      return data.slots.map(s => {
+      const availableSlots = [];
+      const busySlots = [];
+
+      for (const s of data.slots) {
         const date = new Date(s.start_time_customer_tz || s.start_time_provider_tz);
         const hours = String(date.getHours()).padStart(2, '0');
         const mins = String(date.getMinutes()).padStart(2, '0');
-        return `${hours}:${mins}`;
-      });
+        const timeStr = `${hours}:${mins}`;
+
+        if (s.is_free !== false) {
+          availableSlots.push(timeStr);
+        } else {
+          busySlots.push(timeStr);
+        }
+      }
+
+      return { availableSlots, busySlots };
     }
     return null;
   } catch (err) {
@@ -68,8 +161,8 @@ async function handleAvailability(req, res) {
 
     const dateStr = date.trim();
 
-    // 1. Fetch live available slots directly from SMS Reminder / Google Calendar
-    const liveSmsSlots = await getSmsReminderLiveSlots(dateStr);
+    // 1. Fetch live available & busy slots directly from SMS Reminder / Google Calendar
+    const liveSmsData = await getSmsReminderLiveSlots(dateStr);
 
     // 2. Fetch occupied slots in Supabase (excluding CANCELLED and FAILED)
     let dbOccupiedSlots = [];
@@ -87,25 +180,27 @@ async function handleAvailability(req, res) {
     }
 
     let availableSlots = [];
-    if (liveSmsSlots && liveSmsSlots.length > 0) {
+    let bookedSlots = [];
+
+    if (liveSmsData) {
       // Use live slots from SMS Reminder, filtered against active DB reservations
-      availableSlots = liveSmsSlots.filter(slot => !dbOccupiedSlots.includes(slot));
+      availableSlots = liveSmsData.availableSlots.filter(slot => !dbOccupiedSlots.includes(slot));
+      bookedSlots = Array.from(new Set([...liveSmsData.busySlots, ...dbOccupiedSlots]));
     } else {
       // Fallback to standard slots minus DB occupied
       availableSlots = ALLOWED_SLOTS.filter(slot => !dbOccupiedSlots.includes(slot));
+      bookedSlots = ALLOWED_SLOTS.filter(slot => !availableSlots.includes(slot)).concat(dbOccupiedSlots);
     }
 
-    // Booked slots list (any slot in ALLOWED_SLOTS or live slots that is taken)
-    const baseSlots = liveSmsSlots || ALLOWED_SLOTS;
-    const bookedSlots = baseSlots.filter(slot => !availableSlots.includes(slot)).concat(dbOccupiedSlots);
-    const uniqueBookedSlots = Array.from(new Set(bookedSlots));
+    const allSlots = Array.from(new Set([...availableSlots, ...bookedSlots])).sort();
 
     return res.json({
       date: dateStr,
       timezone: TIMEZONE,
-      allSlots: baseSlots,
+      allSlots,
       availableSlots,
-      bookedSlots: uniqueBookedSlots
+      bookedSlots: Array.from(new Set(bookedSlots)),
+      liveChecked: true,
     });
   } catch (err) {
     console.error('Availability error:', err);
@@ -143,23 +238,26 @@ async function handleCreateBooking(req, res) {
       return res.status(400).json({ error: 'Please provide a valid email address.' });
     }
 
-    // 2. Pre-check for duplicate slot in Supabase
-    const { data: existingSlots } = await supabase
-      .from('bookings')
-      .select('id, status')
-      .eq('booking_date', cleanDate)
-      .eq('booking_time', cleanTime)
-      .not('status', 'in', '("CANCELLED","FAILED")');
+    // 2. Direct Instant Booking with SMS Reminder & Google Calendar
+    const smsResult = await createSmsReminderDirectBooking({
+      name: cleanName,
+      email: cleanEmail,
+      phone: cleanPhone,
+      booking_date: cleanDate,
+      booking_time: cleanTime,
+    });
 
-    if (existingSlots && existingSlots.length > 0) {
+    if (!smsResult.success) {
       return res.status(409).json({
-        error: 'This time slot has already been booked. Please choose another available time.',
+        error: smsResult.error || 'This time slot is no longer available. Please choose another available time.',
         occupied: true,
       });
     }
 
-    // 3. STEP 2: Create initial booking record in Supabase with status = 'PENDING'
-    const { data: pendingBooking, error: insertErr } = await supabase
+    const googleEventId = smsResult.googleEventId || null;
+
+    // 3. Save directly to Supabase with status = 'SYNCED'
+    const { data: finalBooking, error: insertErr } = await supabase
       .from('bookings')
       .insert([{
         name: cleanName,
@@ -169,32 +267,16 @@ async function handleCreateBooking(req, res) {
         booking_date: cleanDate,
         booking_time: cleanTime,
         duration_minutes: cleanDuration,
-        status: 'PENDING',
+        status: 'SYNCED',
+        google_event_id: googleEventId,
         notes: notes ? String(notes).trim() : null,
       }])
       .select()
       .single();
 
-    if (insertErr) {
-      if (insertErr.code === '23505') {
-        return res.status(409).json({
-          error: 'This time slot was just booked by another customer. Please choose a different time.',
-          occupied: true,
-        });
-      }
-      console.error('Supabase booking insert error:', insertErr);
-      return res.status(500).json({ error: 'Failed to create booking in database.' });
-    }
+    const bookingId = finalBooking?.id || `booking_${Date.now()}`;
 
-    const bookingId = pendingBooking.id;
-
-    // 4. Update status to 'PROCESSING'
-    await supabase
-      .from('bookings')
-      .update({ status: 'PROCESSING', updated_at: new Date().toISOString() })
-      .eq('id', bookingId);
-
-    // 5. Sync to CRM leads table
+    // 4. Sync to CRM leads table
     try {
       await supabase.from('leads').insert([{
         name: cleanName,
@@ -211,21 +293,22 @@ async function handleCreateBooking(req, res) {
       console.warn('Lead insert warning:', leadErr.message);
     }
 
-    // 6. Trigger Background Automation Bot (SMS Reminder + Google Calendar + Email Notification)
-    syncBookingToSmsReminder({
-      id: bookingId,
+    // 5. Send Admin Notification Email
+    await sendAdminNotificationEmail({
+      bookingId,
       name: cleanName,
       email: cleanEmail,
       phone: cleanPhone,
       service_needed: cleanService,
       booking_date: cleanDate,
       booking_time: cleanTime,
-    }).catch(err => console.error('[BOT ASYNC ERROR]', err));
+      google_event_id: googleEventId,
+    });
 
     return res.status(201).json({
       success: true,
-      message: 'Booking successfully confirmed and queued for calendar synchronization.',
-      booking: {
+      message: 'Booking successfully confirmed and added to Google Calendar.',
+      booking: finalBooking || {
         id: bookingId,
         name: cleanName,
         email: cleanEmail,
@@ -235,6 +318,8 @@ async function handleCreateBooking(req, res) {
         booking_time: cleanTime,
         duration_minutes: cleanDuration,
         timezone: TIMEZONE,
+        status: 'SYNCED',
+        google_event_id: googleEventId,
       }
     });
   } catch (err) {
