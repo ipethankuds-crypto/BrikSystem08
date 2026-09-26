@@ -363,40 +363,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         console.warn('Lead CRM sync notice:', leadErr.message || leadErr);
       }
 
-      // 6. STEP 4: Create Google Calendar event on server-side
-      let googleEventId: string | null = null;
-      try {
-        googleEventId = await createGoogleCalendarEvent({
-          id: bookingId,
-          name: cleanName,
-          email: cleanEmail,
-          phone: cleanPhone,
-          service_needed: cleanService,
-          booking_date: cleanDate,
-          booking_time: cleanTime,
-          duration_minutes: cleanDuration,
-          existing_event_id: pendingBooking.google_event_id,
-        });
-      } catch (gcalErr: any) {
-        console.error('Google Calendar creation failed:', gcalErr.message || gcalErr);
-        
-        // Mark status as 'FAILED' in Supabase
-        await supabase
-          .from('bookings')
-          .update({
-            status: 'FAILED',
-            notes: notes ? `${notes} | Error: ${gcalErr.message}` : `Error: ${gcalErr.message}`,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', bookingId);
-
-        return res.status(500).json({
-          error: 'Could not synchronize appointment with Google Calendar. Please try again or contact us directly.',
-          bookingId,
-        });
-      }
-
-      // 7. STEP 6: Dispatch notification email to admin
+      // 6. Dispatch notification email to admin immediately
       await sendAdminNotificationEmail({
         bookingId,
         name: cleanName,
@@ -405,29 +372,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         service_needed: cleanService,
         booking_date: cleanDate,
         booking_time: cleanTime,
-        google_event_id: googleEventId,
+        google_event_id: 'Auto-syncing to SMS Reminder & Google Calendar',
       });
-
-      // 8. STEP 9: Mark booking as 'SYNCED'
-      const { data: finalBooking, error: updateErr } = await supabase
-        .from('bookings')
-        .update({
-          status: 'SYNCED',
-          google_event_id: googleEventId,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', bookingId)
-        .select()
-        .single();
-
-      if (updateErr) {
-        console.warn('Final status update warning:', updateErr);
-      }
 
       return res.status(201).json({
         success: true,
-        message: 'Booking successfully confirmed and synchronized with Google Calendar.',
-        booking: finalBooking || {
+        message: 'Booking successfully confirmed and queued for calendar synchronization.',
+        booking: {
           id: bookingId,
           name: cleanName,
           email: cleanEmail,
@@ -437,8 +388,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           booking_time: cleanTime,
           duration_minutes: cleanDuration,
           timezone: TIMEZONE,
-          status: 'SYNCED',
-          google_event_id: googleEventId,
+          status: 'PENDING',
         },
       });
     } catch (err: any) {

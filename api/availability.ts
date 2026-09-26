@@ -32,7 +32,7 @@ const ALLOWED_SLOTS = [
  */
 async function getSmsReminderLiveSlots(dateStr: string): Promise<string[] | null> {
   try {
-    const url = `https://go-interactive.herokuapp.com/v1/availability-slots/compute-slots-for-customer-day?providerId=usr_007UCqZnjYgVb4dI&appointmentTypeId=5aa73161-d540-4906-9b61-11172bd56110&customerDateISO=${encodeURIComponent(dateStr)}&customerTz=America%2FNew_York&rescheduleCode=`;
+    const url = `https://go-interactive.herokuapp.com/v1/availability-slots/compute-slots-for-customer-day?providerId=usr_BiMACnASoaRIx29Y&appointmentTypeId=8ae37932-14ba-4b69-b013-abb7654a984e&customerDateISO=${encodeURIComponent(dateStr)}&customerTz=America%2FNew_York&rescheduleCode=`;
     const response = await fetch(url);
     if (!response.ok) return null;
     const data = await response.json() as { slots?: Array<{ start_time_customer_tz?: string; start_time_provider_tz?: string }> };

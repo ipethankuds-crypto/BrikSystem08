@@ -7,7 +7,7 @@ import fs from 'fs';
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || 'https://qrrdmhwpiiwtixofyvqf.supabase.co';
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFycmRtaHdwaWl3dGl4b2Z5dnFmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgyMDA2MjQsImV4cCI6MjEwMzc3NjYyNH0.K2f7ZRKiCaA9_PJPZZ-sQ2GY0tsxWQsd7hNwHiriEnc';
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'dexter125555@gmail.com';
-const SMS_REMINDER_URL = 'https://www.smsreminder.co/book/007UCqZnjYgVb4dI/ipethan-kuds';
+const SMS_REMINDER_URL = 'https://www.smsreminder.co/book/BiMACnASoaRIx29Y/usseerrish';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -52,14 +52,40 @@ export async function syncBookingToSmsReminder(booking) {
     await new Promise(r => setTimeout(r, 2000));
 
     // Parse target date
-    const [year, month, day] = booking.booking_date.split('-').map(Number);
-    const targetDayStr = String(day);
+    const [targetYear, targetMonth, targetDay] = booking.booking_date.split('-').map(Number);
+    const targetDayStr = String(targetDay);
     const targetTime12 = formatTimeTo12Hour(booking.booking_time);
 
-    console.log(`[BOT] Target Slot: Day ${targetDayStr} at ${targetTime12}`);
+    console.log(`[BOT] Target: ${targetYear}-${String(targetMonth).padStart(2, '0')}-${targetDayStr} at ${targetTime12}`);
 
-    // 2. Select Date on Calendar (if not today)
-    await page.evaluate((targetDay) => {
+    // Navigate to correct month if target month is different
+    const currentMonthInfo = await page.evaluate(() => {
+      const text = document.body.innerText;
+      const match = text.match(/(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})/i);
+      return match ? { monthStr: match[1], year: parseInt(match[2], 10) } : null;
+    });
+
+    if (currentMonthInfo) {
+      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+      const currentMonthIdx = monthNames.findIndex(m => m.toLowerCase() === currentMonthInfo.monthStr.toLowerCase()) + 1;
+      const currentYear = currentMonthInfo.year;
+      const monthDiff = (targetYear - currentYear) * 12 + (targetMonth - currentMonthIdx);
+
+      if (monthDiff > 0) {
+        console.log(`[BOT] Advancing calendar ${monthDiff} month(s) forward...`);
+        for (let i = 0; i < monthDiff; i++) {
+          await page.evaluate(() => {
+            const nextBtns = Array.from(document.querySelectorAll('button')).filter(b => b.innerText.trim() === '>');
+            if (nextBtns.length > 0) nextBtns[0].click();
+          });
+          await new Promise(r => setTimeout(r, 1200));
+        }
+      }
+    }
+
+    // 2. Select Date on Calendar
+    console.log(`[BOT] Selecting Day ${targetDayStr}...`);
+    const dayClicked = await page.evaluate((targetDay) => {
       const dayButtons = Array.from(document.querySelectorAll('button')).filter(b => {
         const text = b.innerText.trim();
         const isNotNav = text !== '<' && text !== '>';
@@ -68,10 +94,13 @@ export async function syncBookingToSmsReminder(booking) {
       });
       if (dayButtons.length > 0) {
         dayButtons[0].click();
+        return true;
       }
+      return false;
     }, targetDayStr);
 
-    await new Promise(r => setTimeout(r, 1200));
+    console.log(`[BOT] Day ${targetDayStr} clicked: ${dayClicked ? 'YES' : 'NO'}`);
+    await new Promise(r => setTimeout(r, 1500));
 
     // 3. Select Time Slot (using native enabled slot button click)
     console.log(`[BOT] Selecting time slot...`);

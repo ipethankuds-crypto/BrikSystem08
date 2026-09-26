@@ -79,7 +79,8 @@
   <!-- Babel Standalone for JSX -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-
+  <!-- SMS Reminder Official Embed Script -->
+  <script async src="https://www.smsreminder.co/embed/inline-button.js"></script>
   
   <!-- Google Fonts: Inter -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -721,6 +722,46 @@
             </div>
             {dashboardBody}
           </div>
+        </div>
+      );
+    }
+
+    // =========================================================================
+    // Official SMS Reminder Embed Button Component (Direct Integration)
+    // =========================================================================
+    function SmsReminderButton({ 
+      label = "Book Now", 
+      size = "normal", 
+      position = "centered",
+      color = "#f97316",
+      textColor = "#ffffff",
+      className = ""
+    }) {
+      useEffect(() => {
+        const timer = setTimeout(() => {
+          if (window.BookWithMe && typeof window.BookWithMe.init === 'function') {
+            window.BookWithMe.init();
+          }
+        }, 50);
+        return () => clearTimeout(timer);
+      }, []);
+
+      return (
+        <div className={`inline-block ${className}`}>
+          <a
+            href="https://www.smsreminder.co/book/BiMACnASoaRIx29Y/usseerrish?utm_source=inline-button-embed&utm_medium=embed"
+            target="_blank"
+            rel="noopener noreferrer"
+            data-bwm
+            data-bwm-label={label}
+            data-bwm-color={color}
+            data-bwm-text-color={textColor}
+            data-bwm-size={size}
+            data-bwm-position={position}
+            className="inline-flex items-center justify-center font-semibold rounded-xl bg-ember-500 text-white px-6 py-3 hover:bg-ember-600 transition shadow-sm active:scale-95"
+          >
+            {label}
+          </a>
         </div>
       );
     }
@@ -3004,12 +3045,40 @@
                 <div className="brik-grid-bg pointer-events-none absolute inset-0 opacity-50 [mask-image:radial-gradient(ellipse_at_top,black,transparent_70%)]"></div>
                 <div className="relative mx-auto grid max-w-6xl gap-12 lg:grid-cols-[1fr_1.2fr]">
                   <div>
-                    <span className="text-xs font-semibold uppercase tracking-[0.18em] text-ember-600">Contact</span>
+                    <span className="text-xs font-semibold uppercase tracking-[0.18em] text-ember-600">Schedule & Contact</span>
                     <h1 className="mt-4 text-4xl font-bold text-slate-900 sm:text-5xl text-balance">Let's Build Your System.</h1>
-                    <p className="mt-5 text-lg leading-relaxed text-slate-600">Tell us about your business and what you need.</p>
+                    <p className="mt-5 text-lg leading-relaxed text-slate-600">
+                      Enter your details to schedule a live 30-minute strategy call directly on our calendar.
+                    </p>
+
+                    <div className="mt-8 space-y-4">
+                      <div className="flex items-start gap-3 rounded-xl border border-slate-200/80 bg-slate-50/70 p-4">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-ember-500 text-white">
+                          <Icon name="clock" className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-bold text-slate-900">30-Minute Consultation</h3>
+                          <p className="text-xs text-slate-500">We'll map the exact automations & website structure for your business.</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-3 rounded-xl border border-slate-200/80 bg-slate-50/70 p-4">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500 text-white">
+                          <Icon name="circle-check" className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-bold text-slate-900">Instant Calendar Sync</h3>
+                          <p className="text-xs text-slate-500">Choose your preferred time and get instant confirmation.</p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
 
                   <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xl sm:p-8">
+                    <div className="mb-6">
+                      <h2 className="text-xl font-bold text-slate-900">Book Your Strategy Session</h2>
+                      <p className="text-xs text-slate-500 mt-1">Step 1 of 2: Enter your contact details</p>
+                    </div>
                     <ContactInquiryForm onOpenBookingModal={(formData) => setModal({ type: 'booking_modal', data: formData })} />
                   </div>
                 </div>
