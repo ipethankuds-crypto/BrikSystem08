@@ -27,7 +27,7 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || proce
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || process.env.GOOGLE_CALENDAR_ID || 'ipethankuds@gmail.com';
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || process.env.GOOGLE_CALENDAR_ID || 'dexter125555@gmail.com';
 const TIMEZONE = process.env.TIMEZONE || 'America/Toronto';
 
 function getGoogleCredentials() {
@@ -217,7 +217,12 @@ async function sendAdminNotificationEmail(data: {
   try {
     const res = await fetch(`https://formsubmit.co/ajax/${encodeURIComponent(ADMIN_EMAIL)}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        'Origin': 'https://briksystem000.vercel.app',
+        'Referer': 'https://briksystem000.vercel.app/'
+      },
       body: JSON.stringify(emailPayload),
     });
     if (!res.ok) {

@@ -58,126 +58,112 @@ export async function syncBookingToSmsReminder(booking) {
 
     console.log(`[BOT] Target Slot: Day ${targetDayStr} at ${targetTime12}`);
 
-    // 2. Select Date on Calendar
-    const dateSelected = await page.evaluate((targetDay) => {
+    // 2. Select Date on Calendar (if not today)
+    await page.evaluate((targetDay) => {
       const dayButtons = Array.from(document.querySelectorAll('button')).filter(b => {
         const text = b.innerText.trim();
         const isNotNav = text !== '<' && text !== '>';
-        const isNotDisabled = !b.className.includes('Disabled');
+        const isNotDisabled = !b.className.includes('Disabled') && !b.disabled;
         return isNotNav && isNotDisabled && text === targetDay;
       });
-
       if (dayButtons.length > 0) {
         dayButtons[0].click();
-        return true;
       }
-      return false;
     }, targetDayStr);
 
-    if (!dateSelected) {
-      console.warn(`[BOT] Specific day ${targetDayStr} not clickable or already selected, proceeding with current selection.`);
+    await new Promise(r => setTimeout(r, 1200));
+
+    // 3. Select Time Slot (using native enabled slot button click)
+    console.log(`[BOT] Selecting time slot...`);
+    const enabledSlots = await page.$$('button._timeSlot_isxr4_221:not([disabled]):not([class*="Disabled"]), button[class*="timeSlot"]:not([disabled]):not([class*="Disabled"])');
+    
+    if (enabledSlots.length === 0) {
+      throw new Error('No available time slots found on SMS Reminder for this date.');
     }
 
-    await new Promise(r => setTimeout(r, 1000));
-
-    // 3. Select Time Slot
-    const slotSelected = await page.evaluate((targetTime) => {
-      const slotButtons = Array.from(document.querySelectorAll('button')).filter(b => {
-        const text = b.innerText.trim();
-        return text === targetTime || text.replace(/\s+/g, '') === targetTime.replace(/\s+/g, '');
-      });
-
-      if (slotButtons.length > 0) {
-        slotButtons[0].click();
-        return true;
+    // Try matching preferred slot or pick first available enabled slot
+    let slotToClick = enabledSlots[0];
+    for (const slotEl of enabledSlots) {
+      const text = await page.evaluate(el => el.innerText.trim(), slotEl);
+      if (text === targetTime12 || text.replace(/\s+/g, '') === targetTime12.replace(/\s+/g, '')) {
+        slotToClick = slotEl;
+        break;
       }
-      
-      // Fallback to first available slot if exact slot is unavailable
-      const allSlots = Array.from(document.querySelectorAll('button')).filter(b => b.innerText.includes('AM') || b.innerText.includes('PM'));
-      if (allSlots.length > 0) {
-        allSlots[0].click();
-        return true;
-      }
-      return false;
-    }, targetTime12);
+    }
 
-    console.log(`[BOT] Time slot selected: ${slotSelected ? 'YES' : 'NO'}`);
-    await new Promise(r => setTimeout(r, 800));
+    await slotToClick.click();
+    console.log('[BOT] Clicked enabled time slot button.');
+    await new Promise(r => setTimeout(r, 1200));
 
     // 4. Click "Continue to Details →"
     console.log('[BOT] Clicking Continue to Details...');
-    await page.evaluate(() => {
-      const continueBtn = Array.from(document.querySelectorAll('button')).find(b => b.innerText.includes('Continue to Details'));
-      if (continueBtn) continueBtn.click();
-    });
-
-    await page.waitForSelector('input[type="email"], input#booking-email, input[placeholder*="name"]', { timeout: 15000 });
-    await new Promise(r => setTimeout(r, 1200));
-
-    // 5. Fill Step 2 Details Form
-    console.log('[BOT] Filling Customer Details (Name, Phone, Email, Notes)...');
-    
-    // Fill Name
-    const nameFilled = await page.evaluate((fullName) => {
-      const nameInput = document.querySelector('input[placeholder*="full name"]') || document.querySelector('input[placeholder*="Name"]');
-      if (nameInput) {
-        nameInput.value = fullName;
-        nameInput.dispatchEvent(new Event('input', { bubbles: true }));
-        nameInput.dispatchEvent(new Event('change', { bubbles: true }));
-        return true;
+    const allButtons = await page.$$('button');
+    for (const btn of allButtons) {
+      const text = await page.evaluate(el => el.innerText, btn);
+      if (text.includes('Continue to Details')) {
+        await btn.click();
+        break;
       }
-      return false;
-    }, booking.name);
+    }
 
-    // Fill Phone
-    const phoneDigits = booking.phone.replace(/[^\d+]/g, '');
-    await page.evaluate((phone) => {
-      const phoneInput = document.querySelector('input.PhoneInputInput') || document.querySelector('input[type="tel"]');
-      if (phoneInput) {
-        phoneInput.value = phone;
-        phoneInput.dispatchEvent(new Event('input', { bubbles: true }));
-        phoneInput.dispatchEvent(new Event('change', { bubbles: true }));
-        return true;
-      }
-      return false;
-    }, phoneDigits);
-
-    // Fill Email
-    await page.evaluate((email) => {
-      const emailInput = document.querySelector('input#booking-email') || document.querySelector('input[type="email"]');
-      if (emailInput) {
-        emailInput.value = email;
-        emailInput.dispatchEvent(new Event('input', { bubbles: true }));
-        emailInput.dispatchEvent(new Event('change', { bubbles: true }));
-        return true;
-      }
-      return false;
-    }, booking.email);
-
-    // Fill Notes / Topic
-    const noteText = booking.service_needed ? `Requirements: ${booking.service_needed}` : 'Brik Systems Consultation';
-    await page.evaluate((notes) => {
-      const textarea = document.querySelector('textarea');
-      if (textarea) {
-        textarea.value = notes;
-        textarea.dispatchEvent(new Event('input', { bubbles: true }));
-        textarea.dispatchEvent(new Event('change', { bubbles: true }));
-        return true;
-      }
-      return false;
-    }, noteText);
-
+    // 5. Wait for Step 2 Details Form
+    await page.waitForFunction(() => {
+      return document.querySelector('input[placeholder*="name" i], input[type="text"], input[type="tel"]') !== null;
+    }, { timeout: 15000 });
     await new Promise(r => setTimeout(r, 1000));
 
-    // 6. Click "Confirm Booking"
+    // 6. Fill Step 2 Details Form using React value setter
+    console.log('[BOT] Filling Customer Details (Name, Phone, Email, Notes)...');
+    const phoneDigits = (booking.phone || '').replace(/[^\d+]/g, '') || '4165550199';
+    const noteText = booking.service_needed ? `Requirements: ${booking.service_needed}` : 'Brik Systems Consultation';
+
+    await page.evaluate((custName, custPhone, custEmail, custNotes) => {
+      const setReactValue = (element, value) => {
+        const proto = element.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
+        const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+        if (setter) {
+          setter.call(element, value);
+        } else {
+          element.value = value;
+        }
+        element.dispatchEvent(new Event('input', { bubbles: true }));
+        element.dispatchEvent(new Event('change', { bubbles: true }));
+        element.dispatchEvent(new Event('blur', { bubbles: true }));
+      };
+
+      const inputs = Array.from(document.querySelectorAll('input'));
+      for (const inp of inputs) {
+        const ph = (inp.placeholder || '').toLowerCase();
+        const id = (inp.id || '').toLowerCase();
+        const tp = (inp.type || '').toLowerCase();
+        const cl = (inp.className || '').toLowerCase();
+
+        if (ph.includes('name') || tp === 'text') {
+          setReactValue(inp, custName);
+        } else if (ph.includes('phone') || cl.includes('phone') || tp === 'tel') {
+          setReactValue(inp, custPhone);
+        } else if (id.includes('email') || tp === 'email') {
+          setReactValue(inp, custEmail);
+        }
+      }
+
+      const textarea = document.querySelector('textarea');
+      if (textarea) {
+        setReactValue(textarea, custNotes);
+      }
+    }, booking.name, phoneDigits, booking.email, noteText);
+
+    await new Promise(r => setTimeout(r, 1500));
+
+    // 7. Click "Confirm Booking"
     console.log('[BOT] Submitting form on SMS Reminder...');
     await page.evaluate(() => {
       const confirmBtn = Array.from(document.querySelectorAll('button')).find(b => b.innerText.includes('Confirm Booking'));
       if (confirmBtn) confirmBtn.click();
     });
 
-    // Wait for submission response
-    await new Promise(r => setTimeout(r, 4000));
+    // Wait for confirmation
+    await new Promise(r => setTimeout(r, 6000));
 
     console.log(`✅ [BOT] Successfully submitted booking on SMS Reminder for ${booking.name}!`);
 

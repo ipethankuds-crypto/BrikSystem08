@@ -1,12 +1,4 @@
 import { createClient } from '@supabase/supabase-js';
-import * as crypto from 'crypto';
-import * as fs from 'fs';
-import * as path from 'path';
-
-// Disable TLS verification for local dev environments with proxy/AV interception
-if (process.env.NODE_ENV !== 'production') {
-  process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
-}
 
 export interface VercelRequest {
   method?: string;
@@ -27,145 +19,35 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || proce
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || process.env.GOOGLE_CALENDAR_ID || 'ipethankuds@gmail.com';
 const TIMEZONE = process.env.TIMEZONE || 'America/Toronto';
 
-function getGoogleCredentials() {
-  let clientEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-  let privateKey = process.env.GOOGLE_PRIVATE_KEY;
+const ALLOWED_SLOTS = [
+  '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
+  '12:00', '12:30', '13:00', '13:30', '14:00', '14:30',
+  '15:00', '15:30', '16:00', '16:30', '17:00', '17:30'
+];
 
-  if (!clientEmail || !privateKey) {
-    try {
-      const keyPath = path.join(process.cwd(), 'service-account-key.json');
-      if (fs.existsSync(keyPath)) {
-        const keyData = JSON.parse(fs.readFileSync(keyPath, 'utf8'));
-        clientEmail = keyData.client_email;
-        privateKey = keyData.private_key;
-      }
-    } catch (e) {
-      console.warn('Could not read service-account-key.json:', e);
-    }
-  }
-  return { clientEmail, privateKey };
-}
-
-// Helper to get Google OAuth2 Access Token from Service Account
-async function getGoogleAccessToken(clientEmail: string, privateKey: string): Promise<string | null> {
+/**
+ * Fetch real-time available slots directly from SMS Reminder / Google Calendar API
+ */
+async function getSmsReminderLiveSlots(dateStr: string): Promise<string[] | null> {
   try {
-    const formattedKey = privateKey.replace(/\\n/g, '\n');
-    const now = Math.floor(Date.now() / 1000);
-    const header = { alg: 'RS256', typ: 'JWT' };
-    const claimSet = {
-      iss: clientEmail,
-      scope: 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar',
-      aud: 'https://oauth2.googleapis.com/token',
-      exp: now + 3600,
-      iat: now,
-    };
-
-    const b64Header = Buffer.from(JSON.stringify(header)).toString('base64url');
-    const b64ClaimSet = Buffer.from(JSON.stringify(claimSet)).toString('base64url');
-    const unsignedJwt = `${b64Header}.${b64ClaimSet}`;
-
-    const signer = crypto.createSign('RSA-SHA256');
-    signer.update(unsignedJwt);
-    signer.end();
-    const signature = signer.sign(formattedKey, 'base64url');
-    const signedJwt = `${unsignedJwt}.${signature}`;
-
-    const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-        assertion: signedJwt,
-      }),
-    });
-
-    if (!tokenRes.ok) {
-      console.warn('Google OAuth token error in availability:', await tokenRes.text());
-      return null;
+    const url = `https://go-interactive.herokuapp.com/v1/availability-slots/compute-slots-for-customer-day?providerId=usr_007UCqZnjYgVb4dI&appointmentTypeId=5aa73161-d540-4906-9b61-11172bd56110&customerDateISO=${encodeURIComponent(dateStr)}&customerTz=America%2FNew_York&rescheduleCode=`;
+    const response = await fetch(url);
+    if (!response.ok) return null;
+    const data = await response.json() as { slots?: Array<{ start_time_customer_tz?: string; start_time_provider_tz?: string }> };
+    if (Array.isArray(data.slots)) {
+      return data.slots.map(s => {
+        const date = new Date(s.start_time_customer_tz || s.start_time_provider_tz || '');
+        const hours = String(date.getHours()).padStart(2, '0');
+        const mins = String(date.getMinutes()).padStart(2, '0');
+        return `${hours}:${mins}`;
+      });
     }
-
-    const tokenData = (await tokenRes.json()) as { access_token?: string };
-    return tokenData.access_token || null;
-  } catch (err) {
-    console.warn('Failed to obtain Google access token for availability:', err);
     return null;
-  }
-}
-
-// Check Google Calendar FreeBusy
-async function getGoogleBusySlots(dateStr: string): Promise<string[]> {
-  const { clientEmail, privateKey } = getGoogleCredentials();
-  const calendarId = ADMIN_EMAIL;
-  const timezone = TIMEZONE;
-
-  if (!clientEmail || !privateKey) {
-    return [];
-  }
-
-  const accessToken = await getGoogleAccessToken(clientEmail, privateKey);
-  if (!accessToken) return [];
-
-  try {
-    const timeMin = new Date(`${dateStr}T00:00:00Z`).toISOString();
-    const timeMax = new Date(`${dateStr}T23:59:59Z`).toISOString();
-
-    const freeBusyRes = await fetch('https://www.googleapis.com/calendar/v3/freeBusy', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        timeMin,
-        timeMax,
-        timeZone: timezone,
-        items: [{ id: calendarId }],
-      }),
-    });
-
-    if (!freeBusyRes.ok) {
-      console.warn('Google FreeBusy error:', await freeBusyRes.text());
-      return [];
-    }
-
-    const data = (await freeBusyRes.json()) as {
-      calendars?: Record<string, { busy?: Array<{ start: string; end: string }> }>;
-    };
-
-    const busyRanges = data.calendars?.[calendarId]?.busy || [];
-    const busySlots: string[] = [];
-
-    // Allowed consultation slots: 9am - 12pm and 3pm - 6pm (30 min increments)
-    const possibleSlots = [
-      '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
-      '15:00', '15:30', '16:00', '16:30', '17:00', '17:30'
-    ];
-
-    for (const slot of possibleSlots) {
-      const [h, m] = slot.split(':').map(Number);
-      const slotStart = new Date(`${dateStr}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`).getTime();
-      const slotEnd = slotStart + 30 * 60 * 1000;
-
-      for (const range of busyRanges) {
-        if (!range.start || !range.end) continue;
-        const busyStart = new Date(range.start).getTime();
-        const busyEnd = new Date(range.end).getTime();
-
-        // Check if slot overlaps with busy interval
-        if (slotStart < busyEnd && slotEnd > busyStart) {
-          busySlots.push(slot);
-          break;
-        }
-      }
-    }
-
-    return busySlots;
-  } catch (err) {
-    console.warn('Google FreeBusy check exception:', err);
-    return [];
+  } catch (err: any) {
+    console.warn('SMS Reminder live availability check notice:', err.message || err);
+    return null;
   }
 }
 
@@ -195,31 +77,42 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const dateStr = date.trim();
 
-    // 1. Fetch active bookings from Supabase (excluding cancelled and failed)
-    const { data: dbBookings, error: dbError } = await supabase
-      .from('bookings')
-      .select('booking_time')
-      .eq('booking_date', dateStr)
-      .not('status', 'in', '("CANCELLED","FAILED")');
+    // 1. Fetch live available slots directly from SMS Reminder / Google Calendar
+    const liveSmsSlots = await getSmsReminderLiveSlots(dateStr);
 
-    if (dbError) {
-      console.warn('Supabase availability query error:', dbError);
+    // 2. Fetch active bookings from Supabase (excluding CANCELLED and FAILED)
+    let dbOccupiedSlots: string[] = [];
+    try {
+      const { data: dbBookings, error: dbError } = await supabase
+        .from('bookings')
+        .select('booking_time')
+        .eq('booking_date', dateStr)
+        .not('status', 'in', '("CANCELLED","FAILED")');
+
+      if (dbBookings) {
+        dbOccupiedSlots = dbBookings.map((b) => (b.booking_time || '').slice(0, 5));
+      }
+    } catch (dbErr) {
+      console.warn('Supabase availability query error:', dbErr);
     }
 
-    const dbOccupied = (dbBookings || []).map((b) => (b.booking_time || '').slice(0, 5));
+    let availableSlots: string[] = [];
+    if (liveSmsSlots && liveSmsSlots.length > 0) {
+      availableSlots = liveSmsSlots.filter(slot => !dbOccupiedSlots.includes(slot));
+    } else {
+      availableSlots = ALLOWED_SLOTS.filter(slot => !dbOccupiedSlots.includes(slot));
+    }
 
-    // 2. Fetch occupied slots from Google Calendar
-    const googleOccupied = await getGoogleBusySlots(dateStr);
-
-    // 3. Merge and deduplicate
-    const occupiedSet = new Set<string>([...dbOccupied, ...googleOccupied]);
-    const bookedSlots = Array.from(occupiedSet).sort();
+    const baseSlots = liveSmsSlots || ALLOWED_SLOTS;
+    const bookedSlots = Array.from(new Set(baseSlots.filter(slot => !availableSlots.includes(slot)).concat(dbOccupiedSlots)));
 
     return res.status(200).json({
       date: dateStr,
       timezone: TIMEZONE,
+      allSlots: baseSlots,
+      availableSlots,
       bookedSlots,
-      googleCalendarChecked: true,
+      liveChecked: true,
     });
   } catch (err: any) {
     console.error('Availability error:', err);

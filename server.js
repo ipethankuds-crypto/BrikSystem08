@@ -33,27 +33,27 @@ const ALLOWED_SLOTS = [
 ];
 
 /**
- * Initialize Google Calendar client with Service Account
+ * Fetch real-time available slots directly from SMS Reminder / Google Calendar API
  */
-function getCalendarClient() {
-  let auth;
-  if (fs.existsSync(SERVICE_ACCOUNT_PATH)) {
-    auth = new GoogleAuth({
-      keyFile: SERVICE_ACCOUNT_PATH,
-      scopes: ['https://www.googleapis.com/auth/calendar', 'https://www.googleapis.com/auth/calendar.events']
-    });
-  } else if (process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL && process.env.GOOGLE_PRIVATE_KEY) {
-    auth = new GoogleAuth({
-      credentials: {
-        client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-        private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-      },
-      scopes: ['https://www.googleapis.com/auth/calendar', 'https://www.googleapis.com/auth/calendar.events']
-    });
-  } else {
+async function getSmsReminderLiveSlots(dateStr) {
+  try {
+    const url = `https://go-interactive.herokuapp.com/v1/availability-slots/compute-slots-for-customer-day?providerId=usr_007UCqZnjYgVb4dI&appointmentTypeId=5aa73161-d540-4906-9b61-11172bd56110&customerDateISO=${encodeURIComponent(dateStr)}&customerTz=America%2FNew_York&rescheduleCode=`;
+    const response = await fetch(url);
+    if (!response.ok) return null;
+    const data = await response.json();
+    if (Array.isArray(data.slots)) {
+      return data.slots.map(s => {
+        const date = new Date(s.start_time_customer_tz || s.start_time_provider_tz);
+        const hours = String(date.getHours()).padStart(2, '0');
+        const mins = String(date.getMinutes()).padStart(2, '0');
+        return `${hours}:${mins}`;
+      });
+    }
+    return null;
+  } catch (err) {
+    console.warn('SMS Reminder live availability check notice:', err.message);
     return null;
   }
-  return googleCalendar({ version: 'v3', auth });
 }
 
 // ---------------------------------------------------------------------------
@@ -67,29 +67,11 @@ async function handleAvailability(req, res) {
     }
 
     const dateStr = date.trim();
-    let busyRanges = [];
-    const calendar = getCalendarClient();
 
-    if (calendar) {
-      try {
-        const timeMin = new Date(`${dateStr}T00:00:00Z`).toISOString();
-        const timeMax = new Date(`${dateStr}T23:59:59Z`).toISOString();
+    // 1. Fetch live available slots directly from SMS Reminder / Google Calendar
+    const liveSmsSlots = await getSmsReminderLiveSlots(dateStr);
 
-        const freeBusyRes = await calendar.freebusy.query({
-          requestBody: {
-            timeMin,
-            timeMax,
-            timeZone: TIMEZONE,
-            items: [{ id: ADMIN_EMAIL }]
-          }
-        });
-        busyRanges = freeBusyRes.data.calendars?.[ADMIN_EMAIL]?.busy || [];
-      } catch (calErr) {
-        console.warn('Calendar FreeBusy query notice:', calErr.message);
-      }
-    }
-
-    // Check Supabase booked slots (exclude cancelled and failed)
+    // 2. Fetch occupied slots in Supabase (excluding CANCELLED and FAILED)
     let dbOccupiedSlots = [];
     try {
       const { data: dbBookings } = await supabase
@@ -104,34 +86,26 @@ async function handleAvailability(req, res) {
       console.warn('DB availability query notice:', dbErr.message);
     }
 
-    const availableSlots = ALLOWED_SLOTS.filter(slotTime => {
-      if (dbOccupiedSlots.includes(slotTime)) return false;
+    let availableSlots = [];
+    if (liveSmsSlots && liveSmsSlots.length > 0) {
+      // Use live slots from SMS Reminder, filtered against active DB reservations
+      availableSlots = liveSmsSlots.filter(slot => !dbOccupiedSlots.includes(slot));
+    } else {
+      // Fallback to standard slots minus DB occupied
+      availableSlots = ALLOWED_SLOTS.filter(slot => !dbOccupiedSlots.includes(slot));
+    }
 
-      const [h, m] = slotTime.split(':').map(Number);
-      const slotStart = new Date(`${dateStr}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`).getTime();
-      const slotEnd = slotStart + 30 * 60 * 1000;
-
-      const isBusy = busyRanges.some(range => {
-        if (!range.start || !range.end) return false;
-        const bStart = new Date(range.start).getTime();
-        const bEnd = new Date(range.end).getTime();
-        return slotStart < bEnd && slotEnd > bStart;
-      });
-
-      return !isBusy;
-    });
-
-    // Booked slots list
-    const bookedSlots = ALLOWED_SLOTS.filter(slot => !availableSlots.includes(slot));
+    // Booked slots list (any slot in ALLOWED_SLOTS or live slots that is taken)
+    const baseSlots = liveSmsSlots || ALLOWED_SLOTS;
+    const bookedSlots = baseSlots.filter(slot => !availableSlots.includes(slot)).concat(dbOccupiedSlots);
+    const uniqueBookedSlots = Array.from(new Set(bookedSlots));
 
     return res.json({
       date: dateStr,
-      calendarId: ADMIN_EMAIL,
       timezone: TIMEZONE,
-      allSlots: ALLOWED_SLOTS,
+      allSlots: baseSlots,
       availableSlots,
-      bookedSlots,
-      busyRanges
+      bookedSlots: uniqueBookedSlots
     });
   } catch (err) {
     console.error('Availability error:', err);
