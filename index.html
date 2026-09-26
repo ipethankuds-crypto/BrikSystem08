@@ -1062,6 +1062,11 @@
             if (onBookingSuccess) onBookingSuccess(result.booking || bookingPayload);
             setSubmitting(false);
             return;
+          } else if (apiRes.status !== 404) {
+            const errData = await apiRes.json().catch(() => ({}));
+            setErrorMessage(errData.error || 'Failed to process booking. Please try again.');
+            setSubmitting(false);
+            return;
           }
         } catch (apiErr) {
           console.warn('API booking endpoint offline, attempting direct Supabase fallback:', apiErr);

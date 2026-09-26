@@ -1,10 +1,8 @@
 -- ==============================================================================
--- Brik Systems: Bookings & Calendar Schema Migration
--- Run this script in the Supabase SQL Editor to create the 'bookings' table
--- and refresh the PostgREST schema cache.
+-- Brik Systems: Bookings & Calendar Complete Schema Migration
 -- ==============================================================================
 
--- 1. Enable UUID Extension (if not already enabled)
+-- 1. Enable UUID Extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- 2. CREATE BOOKINGS TABLE
@@ -18,18 +16,32 @@ CREATE TABLE IF NOT EXISTS public.bookings (
     booking_date DATE NOT NULL,
     booking_time VARCHAR(10) NOT NULL,
     duration_minutes INT NOT NULL DEFAULT 30,
-    status VARCHAR(50) NOT NULL DEFAULT 'CONFIRMED', -- 'CONFIRMED', 'COMPLETED', 'CANCELLED'
+    timezone VARCHAR(100) NOT NULL DEFAULT 'America/Toronto',
+    status VARCHAR(50) NOT NULL DEFAULT 'PENDING', -- 'PENDING', 'PROCESSING', 'SYNCED', 'FAILED', 'CANCELLED'
     google_event_id VARCHAR(255),
+    error_log TEXT,
     notes TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
 
+-- Ensure columns exist if table was already created earlier
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'bookings' AND column_name = 'timezone') THEN
+        ALTER TABLE public.bookings ADD COLUMN timezone VARCHAR(100) NOT NULL DEFAULT 'America/Toronto';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'bookings' AND column_name = 'error_log') THEN
+        ALTER TABLE public.bookings ADD COLUMN error_log TEXT;
+    END IF;
+END $$;
+
 -- 3. PARTIAL UNIQUE INDEX (PREVENTS DOUBLE BOOKINGS AT DATABASE LEVEL)
--- Allows re-booking a slot if a previous booking was CANCELLED.
-CREATE UNIQUE INDEX IF NOT EXISTS uq_booking_slot
+-- Allows re-booking a slot if a previous booking was CANCELLED or FAILED.
+DROP INDEX IF EXISTS public.uq_booking_slot;
+CREATE UNIQUE INDEX uq_booking_slot
     ON public.bookings (booking_date, booking_time)
-    WHERE (status != 'CANCELLED');
+    WHERE (status NOT IN ('CANCELLED', 'FAILED'));
 
 -- 4. INDEXES FOR PERFORMANCE
 CREATE INDEX IF NOT EXISTS idx_bookings_date ON public.bookings (booking_date);
@@ -58,7 +70,15 @@ CREATE POLICY "Allow public select on bookings"
     TO anon, authenticated
     USING (true);
 
--- Policy 3: Allow authenticated staff / admin to update & manage all bookings
+-- Policy 3: Allow public / bot updates on booking status
+CREATE POLICY "Allow public update on bookings"
+    ON public.bookings
+    FOR UPDATE
+    TO anon, authenticated
+    USING (true)
+    WITH CHECK (true);
+
+-- Policy 4: Allow authenticated staff / admin / service role to manage all bookings
 CREATE POLICY "Allow authenticated manage on bookings"
     ON public.bookings
     FOR ALL
@@ -67,5 +87,4 @@ CREATE POLICY "Allow authenticated manage on bookings"
     WITH CHECK (true);
 
 -- 6. RELOAD SUPABASE POSTGREST SCHEMA CACHE
--- This immediately resolves the 'Could not find the table public.bookings in schema cache' error!
 NOTIFY pgrst, 'reload schema';

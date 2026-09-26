@@ -1,5 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
 import * as crypto from 'crypto';
+import * as fs from 'fs';
+import * as path from 'path';
+
+// Disable TLS verification for local dev environments with proxy/AV interception
+if (process.env.NODE_ENV !== 'production') {
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+}
 
 export interface VercelRequest {
   method?: string;
@@ -19,6 +26,28 @@ const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL |
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFycmRtaHdwaWl3dGl4b2Z5dnFmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgyMDA2MjQsImV4cCI6MjEwMzc3NjYyNH0.K2f7ZRKiCaA9_PJPZZ-sQ2GY0tsxWQsd7hNwHiriEnc';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || process.env.GOOGLE_CALENDAR_ID || 'ipethankuds@gmail.com';
+const TIMEZONE = process.env.TIMEZONE || 'America/Toronto';
+
+function getGoogleCredentials() {
+  let clientEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+  let privateKey = process.env.GOOGLE_PRIVATE_KEY;
+
+  if (!clientEmail || !privateKey) {
+    try {
+      const keyPath = path.join(process.cwd(), 'service-account-key.json');
+      if (fs.existsSync(keyPath)) {
+        const keyData = JSON.parse(fs.readFileSync(keyPath, 'utf8'));
+        clientEmail = keyData.client_email;
+        privateKey = keyData.private_key;
+      }
+    } catch (e) {
+      console.warn('Could not read service-account-key.json:', e);
+    }
+  }
+  return { clientEmail, privateKey };
+}
 
 // Helper to get Google OAuth2 Access Token from Service Account
 async function getGoogleAccessToken(clientEmail: string, privateKey: string): Promise<string | null> {
@@ -66,30 +95,9 @@ async function getGoogleAccessToken(clientEmail: string, privateKey: string): Pr
   }
 }
 
-import * as fs from 'fs';
-import * as path from 'path';
-
-function getGoogleCredentials() {
-  let clientEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-  let privateKey = process.env.GOOGLE_PRIVATE_KEY;
-
-  if (!clientEmail || !privateKey) {
-    try {
-      const keyPath = path.join(process.cwd(), 'service-account-key.json');
-      if (fs.existsSync(keyPath)) {
-        const keyData = JSON.parse(fs.readFileSync(keyPath, 'utf8'));
-        clientEmail = keyData.client_email;
-        privateKey = keyData.private_key;
-      }
-    } catch (e) {
-      console.warn('Could not read service-account-key.json:', e);
-    }
-  }
-  return { clientEmail, privateKey };
-}
-
-// Create Event on Google Calendar
+// Create Event on Google Calendar with idempotency check
 async function createGoogleCalendarEvent(booking: {
+  id?: string;
   name: string;
   email: string;
   phone: string;
@@ -97,12 +105,19 @@ async function createGoogleCalendarEvent(booking: {
   booking_date: string;
   booking_time: string;
   duration_minutes: number;
+  existing_event_id?: string | null;
 }): Promise<string | null> {
+  // Idempotency check: if event already exists, reuse it
+  if (booking.existing_event_id) {
+    console.log('Reusing existing Google Calendar event ID:', booking.existing_event_id);
+    return booking.existing_event_id;
+  }
+
   const { clientEmail, privateKey } = getGoogleCredentials();
-  const calendarId = process.env.GOOGLE_CALENDAR_ID || 'ipethankuds@gmail.com';
+  const calendarId = ADMIN_EMAIL;
 
   if (!clientEmail || !privateKey) {
-    console.log('Google Calendar credentials not set. Skipping live calendar sync.');
+    console.warn('Google Calendar credentials not set.');
     return null;
   }
 
@@ -114,19 +129,28 @@ async function createGoogleCalendarEvent(booking: {
     const startHour = parseInt(hoursStr || '9', 10);
     const startMin = parseInt(minsStr || '0', 10);
 
-    const startDateTime = new Date(`${booking.booking_date}T${hoursStr.padStart(2, '0')}:${minsStr.padStart(2, '0')}:00`);
+    const startDateTime = new Date(`${booking.booking_date}T${String(startHour).padStart(2, '0')}:${String(startMin).padStart(2, '0')}:00`);
     const endDateTime = new Date(startDateTime.getTime() + (booking.duration_minutes || 30) * 60 * 1000);
 
     const eventPayload = {
-      summary: `Meeting with ${booking.name} — Brik Systems`,
-      description: `Customer Name: ${booking.name}\nEmail: ${booking.email}\nPhone: ${booking.phone}\nWhat they need: ${booking.service_needed}\nBooked via BrikSystems Booking System`,
+      summary: `Appointment: ${booking.name} — Brik Systems`,
+      description: [
+        `Customer Name: ${booking.name}`,
+        `Email: ${booking.email}`,
+        `Phone: ${booking.phone}`,
+        `Service Requested: ${booking.service_needed}`,
+        `Timezone: ${TIMEZONE}`,
+        booking.id ? `Booking Reference ID: ${booking.id}` : '',
+        '----------------------------------------',
+        'Booked automatically via Brik Systems Website'
+      ].filter(Boolean).join('\n'),
       start: {
         dateTime: startDateTime.toISOString(),
-        timeZone: process.env.TIMEZONE || 'America/Toronto',
+        timeZone: TIMEZONE,
       },
       end: {
         dateTime: endDateTime.toISOString(),
-        timeZone: process.env.TIMEZONE || 'America/Toronto',
+        timeZone: TIMEZONE,
       },
       reminders: {
         useDefault: false,
@@ -151,12 +175,56 @@ async function createGoogleCalendarEvent(booking: {
       console.log('Created Google Calendar event ID:', data.id);
       return data.id || null;
     } else {
-      console.warn('Google Calendar Event Create Error:', await res.text());
-      return null;
+      const errText = await res.text();
+      console.warn('Google Calendar Event Create Error:', errText);
+      throw new Error(`Google Calendar API error: ${errText}`);
     }
-  } catch (e) {
-    console.warn('Google Calendar API exception:', e);
-    return null;
+  } catch (e: any) {
+    console.error('Google Calendar API exception:', e.message || e);
+    throw e;
+  }
+}
+
+// Server-side Email Dispatcher
+async function sendAdminNotificationEmail(data: {
+  bookingId: string;
+  name: string;
+  email: string;
+  phone: string;
+  service_needed: string;
+  booking_date: string;
+  booking_time: string;
+  google_event_id?: string | null;
+}) {
+  const subject = `New Website Booking — ${data.name}`;
+  
+  // Format body for email
+  const emailPayload = {
+    _subject: subject,
+    _template: 'table',
+    _captcha: 'false',
+    customer_name: data.name,
+    customer_email: data.email,
+    customer_phone: data.phone,
+    booking_date: data.booking_date,
+    booking_time: data.booking_time,
+    timezone: TIMEZONE,
+    service_topic: data.service_needed,
+    booking_id: data.bookingId,
+    google_calendar_event_id: data.google_event_id || 'Pending sync',
+  };
+
+  try {
+    const res = await fetch(`https://formsubmit.co/ajax/${encodeURIComponent(ADMIN_EMAIL)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify(emailPayload),
+    });
+    if (!res.ok) {
+      console.warn('FormSubmit notification response not ok:', await res.text());
+    }
+  } catch (e: any) {
+    console.warn('Admin email dispatch notice:', e.message || e);
   }
 }
 
@@ -164,7 +232,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Enable CORS
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST');
   res.setHeader(
     'Access-Control-Allow-Headers',
     'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization'
@@ -193,29 +261,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  // POST /api/bookings (Create booking)
+  // POST /api/bookings (Create & Process booking)
   if (req.method === 'POST') {
     try {
-      const { name, email, phone, service_needed, booking_date, booking_time, duration_minutes = 30, notes = '' } = req.body;
+      const { name, email, phone, service_needed, booking_date, booking_time, duration_minutes = 30, notes = '' } = req.body || {};
 
+      // 1. Validate required fields
       if (!name || !email || !phone || !service_needed || !booking_date || !booking_time) {
-        return res.status(400).json({ error: 'Missing required booking fields (name, email, phone, service_needed, booking_date, booking_time).' });
+        return res.status(400).json({
+          error: 'Missing required booking fields: name, email, phone, service_needed, booking_date, booking_time.'
+        });
       }
 
-      const cleanDate = booking_date.trim();
-      const cleanTime = booking_time.trim();
+      const cleanName = String(name).trim();
+      const cleanEmail = String(email).trim().toLowerCase();
+      const cleanPhone = String(phone).trim();
+      const cleanService = String(service_needed).trim();
+      const cleanDate = String(booking_date).trim();
+      const cleanTime = String(booking_time).trim();
+      const cleanDuration = Number(duration_minutes) || 30;
 
-      // 1. Check for existing active booking at this slot (prevent double booking)
-      const { data: existingSlots, error: checkErr } = await supabase
+      // Basic email regex
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+        return res.status(400).json({ error: 'Please provide a valid email address.' });
+      }
+
+      // 2. Pre-check for duplicate slot in Supabase
+      const { data: existingSlots } = await supabase
         .from('bookings')
         .select('id, status')
         .eq('booking_date', cleanDate)
         .eq('booking_time', cleanTime)
-        .neq('status', 'CANCELLED');
-
-      if (checkErr) {
-        console.warn('Slot check warning:', checkErr);
-      }
+        .not('status', 'in', '("CANCELLED","FAILED")');
 
       if (existingSlots && existingSlots.length > 0) {
         return res.status(409).json({
@@ -224,126 +301,144 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         });
       }
 
-      // 2. Insert new booking into Supabase
-      const { data: newBooking, error: insertErr } = await supabase
+      // 3. STEP 2: Create initial booking record with status = 'PENDING'
+      const { data: pendingBooking, error: insertErr } = await supabase
         .from('bookings')
         .insert([
           {
-            name: name.trim(),
-            email: email.trim().toLowerCase(),
-            phone: phone.trim(),
-            service_needed: service_needed.trim(),
+            name: cleanName,
+            email: cleanEmail,
+            phone: cleanPhone,
+            service_needed: cleanService,
             booking_date: cleanDate,
             booking_time: cleanTime,
-            duration_minutes: Number(duration_minutes) || 30,
-            status: 'CONFIRMED',
-            notes: notes.trim(),
+            duration_minutes: cleanDuration,
+            status: 'PENDING',
+            notes: notes ? String(notes).trim() : null,
           },
         ])
         .select()
         .single();
 
-      let bookingRecord = newBooking;
-
       if (insertErr) {
         if (insertErr.code === '23505') {
           return res.status(409).json({
-            error: 'This time slot was just booked by another customer. Please pick a different time.',
+            error: 'This time slot was just booked by another customer. Please choose a different time.',
             occupied: true,
           });
         }
-        console.warn('Supabase bookings insert warning (table may be pending migration):', insertErr.message);
-        // Create a fallback booking record so lead and calendar sync proceed
-        bookingRecord = {
-          id: `temp_${Date.now()}`,
-          name: name.trim(),
-          email: email.trim().toLowerCase(),
-          phone: phone.trim(),
-          service_needed: service_needed.trim(),
-          booking_date: cleanDate,
-          booking_time: cleanTime,
-          duration_minutes: Number(duration_minutes) || 30,
-          status: 'CONFIRMED',
-          notes: notes.trim(),
-          created_at: new Date().toISOString(),
-        };
+        console.error('Supabase booking insert error:', insertErr);
+        return res.status(500).json({ error: 'Failed to create booking in database.' });
       }
 
-      // 3. Sync lead into leads table for CRM tracking
+      const bookingId = pendingBooking.id;
+
+      // 4. Update status to 'PROCESSING'
+      await supabase
+        .from('bookings')
+        .update({ status: 'PROCESSING', updated_at: new Date().toISOString() })
+        .eq('id', bookingId);
+
+      // 5. Also sync to CRM leads table
       try {
         await supabase.from('leads').insert([
           {
-            name: name.trim(),
-            first_name: name.trim().split(' ')[0] || '',
-            last_name: name.trim().split(' ').slice(1).join(' ') || '',
-            email: email.trim().toLowerCase(),
-            phone: phone.trim(),
-            service_requested: service_needed.trim(),
+            name: cleanName,
+            first_name: cleanName.split(' ')[0] || '',
+            last_name: cleanName.split(' ').slice(1).join(' ') || '',
+            email: cleanEmail,
+            phone: cleanPhone,
+            service_requested: cleanService,
             source: 'Website Booking Flow',
             status: 'Booked',
-            notes: `Meeting scheduled on ${cleanDate} at ${cleanTime}. Requirements: ${service_needed.trim()}`,
+            notes: `Meeting scheduled on ${cleanDate} at ${cleanTime} (${TIMEZONE}). Topics: ${cleanService}`,
           },
         ]);
-      } catch (leadErr) {
-        console.warn('Lead sync notice:', leadErr);
+      } catch (leadErr: any) {
+        console.warn('Lead CRM sync notice:', leadErr.message || leadErr);
       }
 
-      // 4. Create Google Calendar event
+      // 6. STEP 4: Create Google Calendar event on server-side
       let googleEventId: string | null = null;
       try {
         googleEventId = await createGoogleCalendarEvent({
-          name: name.trim(),
-          email: email.trim(),
-          phone: phone.trim(),
-          service_needed: service_needed.trim(),
+          id: bookingId,
+          name: cleanName,
+          email: cleanEmail,
+          phone: cleanPhone,
+          service_needed: cleanService,
           booking_date: cleanDate,
           booking_time: cleanTime,
-          duration_minutes: Number(duration_minutes) || 30,
+          duration_minutes: cleanDuration,
+          existing_event_id: pendingBooking.google_event_id,
         });
+      } catch (gcalErr: any) {
+        console.error('Google Calendar creation failed:', gcalErr.message || gcalErr);
+        
+        // Mark status as 'FAILED' in Supabase
+        await supabase
+          .from('bookings')
+          .update({
+            status: 'FAILED',
+            notes: notes ? `${notes} | Error: ${gcalErr.message}` : `Error: ${gcalErr.message}`,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', bookingId);
 
-        if (googleEventId && newBooking?.id) {
-          await supabase
-            .from('bookings')
-            .update({ google_event_id: googleEventId })
-            .eq('id', newBooking.id);
-        }
-      } catch (calErr) {
-        console.warn('Google Calendar sync warning:', calErr);
+        return res.status(500).json({
+          error: 'Could not synchronize appointment with Google Calendar. Please try again or contact us directly.',
+          bookingId,
+        });
       }
 
-      // 5. Send notification email to admin
-      try {
-        await fetch('https://formsubmit.co/ajax/ipethankuds@gmail.com', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-          body: JSON.stringify({
-            _subject: `New Meeting Booked: ${name.trim()} (${cleanDate} at ${cleanTime})`,
-            _template: 'table',
-            _captcha: 'false',
-            name: name.trim(),
-            email: email.trim(),
-            phone: phone.trim(),
-            meeting_date: cleanDate,
-            meeting_time: cleanTime,
-            what_they_need: service_needed.trim(),
-            google_calendar_synced: Boolean(googleEventId),
-          }),
-        });
-      } catch (emailErr) {
-        console.warn('Notification email error:', emailErr);
+      // 7. STEP 6: Dispatch notification email to admin
+      await sendAdminNotificationEmail({
+        bookingId,
+        name: cleanName,
+        email: cleanEmail,
+        phone: cleanPhone,
+        service_needed: cleanService,
+        booking_date: cleanDate,
+        booking_time: cleanTime,
+        google_event_id: googleEventId,
+      });
+
+      // 8. STEP 9: Mark booking as 'SYNCED'
+      const { data: finalBooking, error: updateErr } = await supabase
+        .from('bookings')
+        .update({
+          status: 'SYNCED',
+          google_event_id: googleEventId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', bookingId)
+        .select()
+        .single();
+
+      if (updateErr) {
+        console.warn('Final status update warning:', updateErr);
       }
 
       return res.status(201).json({
         success: true,
-        booking: {
-          ...newBooking,
+        message: 'Booking successfully confirmed and synchronized with Google Calendar.',
+        booking: finalBooking || {
+          id: bookingId,
+          name: cleanName,
+          email: cleanEmail,
+          phone: cleanPhone,
+          service_needed: cleanService,
+          booking_date: cleanDate,
+          booking_time: cleanTime,
+          duration_minutes: cleanDuration,
+          timezone: TIMEZONE,
+          status: 'SYNCED',
           google_event_id: googleEventId,
         },
-        message: 'Meeting booked successfully.',
       });
     } catch (err: any) {
-      console.error('Booking error:', err);
-      return res.status(500).json({ error: err.message || 'Failed to process booking.' });
+      console.error('Booking processing exception:', err);
+      return res.status(500).json({ error: err.message || 'An unexpected error occurred processing your booking.' });
     }
   }
 

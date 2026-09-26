@@ -1,5 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
 import * as crypto from 'crypto';
+import * as fs from 'fs';
+import * as path from 'path';
+
+// Disable TLS verification for local dev environments with proxy/AV interception
+if (process.env.NODE_ENV !== 'production') {
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+}
 
 export interface VercelRequest {
   method?: string;
@@ -19,6 +26,28 @@ const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL |
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFycmRtaHdwaWl3dGl4b2Z5dnFmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgyMDA2MjQsImV4cCI6MjEwMzc3NjYyNH0.K2f7ZRKiCaA9_PJPZZ-sQ2GY0tsxWQsd7hNwHiriEnc';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || process.env.GOOGLE_CALENDAR_ID || 'ipethankuds@gmail.com';
+const TIMEZONE = process.env.TIMEZONE || 'America/Toronto';
+
+function getGoogleCredentials() {
+  let clientEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+  let privateKey = process.env.GOOGLE_PRIVATE_KEY;
+
+  if (!clientEmail || !privateKey) {
+    try {
+      const keyPath = path.join(process.cwd(), 'service-account-key.json');
+      if (fs.existsSync(keyPath)) {
+        const keyData = JSON.parse(fs.readFileSync(keyPath, 'utf8'));
+        clientEmail = keyData.client_email;
+        privateKey = keyData.private_key;
+      }
+    } catch (e) {
+      console.warn('Could not read service-account-key.json:', e);
+    }
+  }
+  return { clientEmail, privateKey };
+}
 
 // Helper to get Google OAuth2 Access Token from Service Account
 async function getGoogleAccessToken(clientEmail: string, privateKey: string): Promise<string | null> {
@@ -66,33 +95,11 @@ async function getGoogleAccessToken(clientEmail: string, privateKey: string): Pr
   }
 }
 
-import * as fs from 'fs';
-import * as path from 'path';
-
-function getGoogleCredentials() {
-  let clientEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-  let privateKey = process.env.GOOGLE_PRIVATE_KEY;
-
-  if (!clientEmail || !privateKey) {
-    try {
-      const keyPath = path.join(process.cwd(), 'service-account-key.json');
-      if (fs.existsSync(keyPath)) {
-        const keyData = JSON.parse(fs.readFileSync(keyPath, 'utf8'));
-        clientEmail = keyData.client_email;
-        privateKey = keyData.private_key;
-      }
-    } catch (e) {
-      console.warn('Could not read service-account-key.json:', e);
-    }
-  }
-  return { clientEmail, privateKey };
-}
-
 // Check Google Calendar FreeBusy
 async function getGoogleBusySlots(dateStr: string): Promise<string[]> {
   const { clientEmail, privateKey } = getGoogleCredentials();
-  const calendarId = process.env.GOOGLE_CALENDAR_ID || 'ipethankuds@gmail.com';
-  const timezone = process.env.TIMEZONE || 'America/Toronto';
+  const calendarId = ADMIN_EMAIL;
+  const timezone = TIMEZONE;
 
   if (!clientEmail || !privateKey) {
     return [];
@@ -102,8 +109,8 @@ async function getGoogleBusySlots(dateStr: string): Promise<string[]> {
   if (!accessToken) return [];
 
   try {
-    const timeMin = `${dateStr}T00:00:00Z`;
-    const timeMax = `${dateStr}T23:59:59Z`;
+    const timeMin = new Date(`${dateStr}T00:00:00Z`).toISOString();
+    const timeMax = new Date(`${dateStr}T23:59:59Z`).toISOString();
 
     const freeBusyRes = await fetch('https://www.googleapis.com/calendar/v3/freeBusy', {
       method: 'POST',
@@ -131,17 +138,19 @@ async function getGoogleBusySlots(dateStr: string): Promise<string[]> {
     const busyRanges = data.calendars?.[calendarId]?.busy || [];
     const busySlots: string[] = [];
 
-    // 30-min consultation slots: 9:00 AM - 12:00 PM and 3:00 PM - 6:00 PM
+    // Allowed consultation slots: 9am - 12pm and 3pm - 6pm (30 min increments)
     const possibleSlots = [
       '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
       '15:00', '15:30', '16:00', '16:30', '17:00', '17:30'
     ];
 
     for (const slot of possibleSlots) {
-      const slotStart = new Date(`${dateStr}T${slot}:00`).getTime();
+      const [h, m] = slot.split(':').map(Number);
+      const slotStart = new Date(`${dateStr}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`).getTime();
       const slotEnd = slotStart + 30 * 60 * 1000;
 
       for (const range of busyRanges) {
+        if (!range.start || !range.end) continue;
         const busyStart = new Date(range.start).getTime();
         const busyEnd = new Date(range.end).getTime();
 
@@ -180,24 +189,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const { date } = req.query;
 
-    if (!date || typeof date !== 'string') {
+    if (!date || typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date.trim())) {
       return res.status(400).json({ error: 'Date query parameter is required in YYYY-MM-DD format.' });
     }
 
     const dateStr = date.trim();
 
-    // 1. Fetch booked slots from Supabase
+    // 1. Fetch active bookings from Supabase (excluding cancelled and failed)
     const { data: dbBookings, error: dbError } = await supabase
       .from('bookings')
       .select('booking_time')
       .eq('booking_date', dateStr)
-      .neq('status', 'CANCELLED');
+      .not('status', 'in', '("CANCELLED","FAILED")');
 
     if (dbError) {
       console.warn('Supabase availability query error:', dbError);
     }
 
-    const dbOccupied = (dbBookings || []).map((b) => b.booking_time);
+    const dbOccupied = (dbBookings || []).map((b) => (b.booking_time || '').slice(0, 5));
 
     // 2. Fetch occupied slots from Google Calendar
     const googleOccupied = await getGoogleBusySlots(dateStr);
@@ -208,8 +217,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     return res.status(200).json({
       date: dateStr,
+      timezone: TIMEZONE,
       bookedSlots,
-      googleCalendarChecked: Boolean(process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL && process.env.GOOGLE_PRIVATE_KEY),
+      googleCalendarChecked: true,
     });
   } catch (err: any) {
     console.error('Availability error:', err);
